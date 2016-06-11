@@ -7,9 +7,6 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD})
-public @interface Column {
-    String name() default "";
-    String defaultValue() default "";
-    boolean isNullable() default true;
-    boolean isUnique() default false;
+public @interface PrimaryKey {
+    boolean isAutoIncrement() default false;
 }
