@@ -18,34 +18,34 @@ public class UtilsDataType {
 
     public static String inferColumnDataType(Field pColumnField) {
         Class<?> columnDataType = pColumnField.getType();
-        if (columnDataType.isAssignableFrom(Byte.TYPE) ||
-                columnDataType.isAssignableFrom(Byte.class) ||
-                columnDataType.isAssignableFrom(Short.TYPE) ||
-                columnDataType.isAssignableFrom(Short.class) ||
-                columnDataType.isAssignableFrom(Integer.TYPE) ||
-                columnDataType.isAssignableFrom(Integer.class) ||
-                columnDataType.isAssignableFrom(Long.TYPE) ||
-                columnDataType.isAssignableFrom(Long.class)) {
+        if (columnDataType.isAssignableFrom(Byte.TYPE)
+                || columnDataType.isAssignableFrom(Byte.class)
+                || columnDataType.isAssignableFrom(Short.TYPE)
+                || columnDataType.isAssignableFrom(Short.class)
+                || columnDataType.isAssignableFrom(Integer.TYPE)
+                || columnDataType.isAssignableFrom(Integer.class)
+                || columnDataType.isAssignableFrom(Long.TYPE)
+                || columnDataType.isAssignableFrom(Long.class)) {
             return UtilsDataType.DATA_TYPE__INTEGER;
         }
 
-        if (columnDataType.equals(Float.TYPE) ||
-                columnDataType.equals(Float.class) ||
-                columnDataType.equals(Double.TYPE) ||
-                columnDataType.equals(Double.class)) {
+        if (columnDataType.equals(Float.TYPE)
+                || columnDataType.equals(Float.class)
+                || columnDataType.equals(Double.TYPE)
+                || columnDataType.equals(Double.class)) {
             return UtilsDataType.DATA_TYPE__REAL;
         }
 
-        if (columnDataType.isAssignableFrom(Character.TYPE) ||
-                columnDataType.isAssignableFrom(Character.class) ||
-                columnDataType.equals(String.class)) {
+        if (columnDataType.isAssignableFrom(Character.TYPE)
+                || columnDataType.isAssignableFrom(Character.class)
+                || columnDataType.equals(String.class)) {
             return UtilsDataType.DATA_TYPE__TEXT;
         }
 
-        if (columnDataType.isAssignableFrom(Boolean.TYPE) ||
-                columnDataType.isAssignableFrom(Boolean.class) ||
-                columnDataType.isAssignableFrom(Date.class) ||
-                columnDataType.isAssignableFrom(java.sql.Date.class)) {
+        if (columnDataType.isAssignableFrom(Boolean.TYPE)
+                || columnDataType.isAssignableFrom(Boolean.class)
+                || columnDataType.isAssignableFrom(Date.class)
+                || columnDataType.isAssignableFrom(java.sql.Date.class)) {
             return UtilsDataType.DATA_TYPE__NUMERIC;
         }
 
@@ -55,18 +55,14 @@ public class UtilsDataType {
 
         if (!columnDataType.isPrimitive() && columnDataType.isAnnotationPresent(Table.class) && pColumnField.isAnnotationPresent(ForeignKey.class)) {
             ForeignKey foreignKeyAnnotation = pColumnField.getAnnotation(ForeignKey.class);
-            String referencedColumnName = foreignKeyAnnotation.referencedColumnName();
-            if (TextUtils.isEmpty(referencedColumnName)) {
-                referencedColumnName = UtilsReflection.getColumnName(pColumnField);
+
+            String masterColumnName = foreignKeyAnnotation.masterColumnName();
+            if (TextUtils.isEmpty(masterColumnName)) {
+                masterColumnName = UtilsReflection.getColumnName(pColumnField);
             }
 
-            List<Field> inverseSideColumnFields = UtilsReflection.getAllColumnFields(columnDataType);
-            for (Field inverseSideColumnField : inverseSideColumnFields) {
-                String inverseSideColumnFieldName = UtilsReflection.getColumnName(inverseSideColumnField);
-                if (TextUtils.equals(referencedColumnName, inverseSideColumnFieldName)) {
-                    return UtilsDataType.inferColumnDataType(inverseSideColumnField);
-                }
-            }
+            Field masterColumnField = UtilsReflection.getColumnFieldByColumnName(masterColumnName, columnDataType);
+            return UtilsDataType.inferColumnDataType(masterColumnField);
         }
 
         throw new RuntimeException("Unrecognized column data type: " + columnDataType.getSimpleName());

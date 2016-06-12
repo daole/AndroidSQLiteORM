@@ -4,15 +4,16 @@ import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
 import android.database.sqlite.SQLiteQueryBuilder;
 
 public class HelperSQLite {
-    private HelperSQLiteConfiguration mSQLiteConfigurationHelper;
+    private SQLiteOpenHelper mSQLiteOpenHelper;
     private SQLiteDatabase mSQLiteDatabase;
     private boolean mIsInTransaction;
 
-    public HelperSQLite(HelperSQLiteConfiguration.SQLiteConfigurationInformation pSQLiteConfigurationInformation) {
-        this.mSQLiteConfigurationHelper = new HelperSQLiteConfiguration(pSQLiteConfigurationInformation);
+    public HelperSQLite(SQLiteOpenHelper pSQLiteOpenHelper) {
+        this.mSQLiteOpenHelper = pSQLiteOpenHelper;
     }
 
     public void open() {
@@ -22,9 +23,9 @@ public class HelperSQLite {
     public void open(int pOpenMode) throws SQLException {
         if (this.mSQLiteDatabase == null) {
             if (pOpenMode == SQLiteDatabase.OPEN_READONLY) {
-                this.mSQLiteDatabase = this.mSQLiteConfigurationHelper.getReadableDatabase();
+                this.mSQLiteDatabase = this.mSQLiteOpenHelper.getReadableDatabase();
             } else if (pOpenMode == SQLiteDatabase.OPEN_READWRITE) {
-                this.mSQLiteDatabase = this.mSQLiteConfigurationHelper.getWritableDatabase();
+                this.mSQLiteDatabase = this.mSQLiteOpenHelper.getWritableDatabase();
             }
         }
     }

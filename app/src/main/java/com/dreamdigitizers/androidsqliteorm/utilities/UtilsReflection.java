@@ -4,6 +4,9 @@ import android.content.Context;
 import android.text.TextUtils;
 
 import com.dreamdigitizers.androidsqliteorm.annotations.Column;
+import com.dreamdigitizers.androidsqliteorm.annotations.ManyToOne;
+import com.dreamdigitizers.androidsqliteorm.annotations.OneToMany;
+import com.dreamdigitizers.androidsqliteorm.annotations.OneToOne;
 import com.dreamdigitizers.androidsqliteorm.annotations.PrimaryKey;
 import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 
@@ -51,6 +54,38 @@ public class UtilsReflection {
         }
 
         return columnFields;
+    }
+
+    public static List<Field> getAllSelectableColumnFields(Class<?> pTableClass) {
+        List<Field> selectableColumnFields = new ArrayList<>();
+
+        Class<?> superClass = pTableClass.getSuperclass();
+        if (superClass != null) {
+            List<Field> parentSelectableColumnFields = UtilsReflection.getAllSelectableColumnFields(superClass);
+            if (!parentSelectableColumnFields.isEmpty()) {
+                selectableColumnFields.addAll(parentSelectableColumnFields);
+            }
+        }
+
+        Field[] declaredFields = pTableClass.getDeclaredFields();
+        for (Field declaredField : declaredFields) {
+            if (UtilsReflection.isSelectableColumnField(declaredField)) {
+                selectableColumnFields.add(declaredField);
+            }
+        }
+
+        return selectableColumnFields;
+    }
+
+    public static Field getColumnFieldByColumnName(String pColumnName, Class<?> pTableClass) {
+        List<Field> columnFields = UtilsReflection.getAllColumnFields(pTableClass);
+        for (Field columnField : columnFields) {
+            String columnName = UtilsReflection.getColumnName(columnField);
+            if (TextUtils.equals(pColumnName, columnName)) {
+                return columnField;
+            }
+        }
+        return null;
     }
 
     public static TableInformation getTableInformation(Class<?> pTableClass) {
@@ -179,10 +214,26 @@ public class UtilsReflection {
     public static boolean isColumnField(Field pField) {
         boolean isColumnField = false;
         int modifiers = pField.getModifiers();
-        if (pField.isAnnotationPresent(Column.class) && !Modifier.isStatic(modifiers) && !Modifier.isTransient(modifiers)) {
+        if (!Modifier.isStatic(modifiers)
+                && !Modifier.isTransient(modifiers)
+                && pField.isAnnotationPresent(Column.class)) {
             isColumnField = true;
         }
         return isColumnField;
+    }
+
+    public static boolean isSelectableColumnField(Field pField) {
+        boolean isSelectableColumnField = false;
+        int modifiers = pField.getModifiers();
+        if (!Modifier.isStatic(modifiers)
+                && !Modifier.isTransient(modifiers)
+                && (pField.isAnnotationPresent(Column.class)
+                || pField.isAnnotationPresent(OneToOne.class)
+                || pField.isAnnotationPresent(OneToMany.class)
+                || pField.isAnnotationPresent(ManyToOne.class))) {
+            isSelectableColumnField = true;
+        }
+        return isSelectableColumnField;
     }
 
     public static class TableInformation {

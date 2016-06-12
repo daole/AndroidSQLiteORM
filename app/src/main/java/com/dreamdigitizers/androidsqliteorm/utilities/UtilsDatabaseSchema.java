@@ -63,10 +63,10 @@ public class UtilsDatabaseSchema {
         for (Field columnField : columnFields) {
             UtilsReflection.ColumnInformation columnInformation = UtilsReflection.getColumnInformation(columnField);
             String columnName = columnInformation.getName();
-            String dataType = columnInformation.getDataType();
-            String defaultValue = columnInformation.getDefaultValue();
-            boolean isNullable = columnInformation.isNullable();
-            boolean isUnique = columnInformation.isUnique();
+            String columnDataType = columnInformation.getDataType();
+            String columnDefaultValue = columnInformation.getDefaultValue();
+            boolean isColumnNullable = columnInformation.isNullable();
+            boolean isColumnUnique = columnInformation.isUnique();
 
             if (!presentColumns.contains(columnName)) {
                 StringBuilder stringBuilder = new StringBuilder("ALTER TABLE ");
@@ -74,19 +74,19 @@ public class UtilsDatabaseSchema {
                 stringBuilder.append(" ADD COLUMN ");
                 stringBuilder.append(columnName);
                 stringBuilder.append(" ");
-                stringBuilder.append(dataType);
+                stringBuilder.append(columnDataType);
 
-                if (!TextUtils.isEmpty(defaultValue)) {
+                if (!TextUtils.isEmpty(columnDefaultValue)) {
                     stringBuilder.append(" DEFAULT '");
-                    stringBuilder.append(defaultValue);
+                    stringBuilder.append(columnDefaultValue);
                     stringBuilder.append("'");
                 }
 
-                if (!isNullable) {
+                if (!isColumnNullable) {
                     stringBuilder.append(" NOT NULL");
                 }
 
-                if (isUnique) {
+                if (isColumnUnique) {
                     stringBuilder.append(" UNIQUE");
                 }
 
@@ -100,8 +100,8 @@ public class UtilsDatabaseSchema {
     public static String createTableSQL(Class pTableClass) {
         UtilsReflection.TableInformation tableInformation = UtilsReflection.getTableInformation(pTableClass);
         String tableName = tableInformation.getName();
-        String[] primaryKeys = tableInformation.getPrimaryKeys();
-        String[] uniqueConstraint = tableInformation.getUniqueConstraint();
+        String[] tablePrimaryKeys = tableInformation.getPrimaryKeys();
+        String[] tableUniqueConstraint = tableInformation.getUniqueConstraint();
 
         StringBuilder stringBuilder = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
         stringBuilder.append(tableName);
@@ -112,36 +112,36 @@ public class UtilsDatabaseSchema {
         for (Field columnField : columnFields) {
             UtilsReflection.ColumnInformation columnInformation = UtilsReflection.getColumnInformation(columnField);
             String columnName = columnInformation.getName();
-            String dataType = columnInformation.getDataType();
-            boolean isPrimaryKey = columnInformation.isPrimaryKey();
-            boolean isAutoIncrement = columnInformation.isAutoIncrement();
-            String defaultValue = columnInformation.getDefaultValue();
-            boolean isNullable = columnInformation.isNullable();
-            boolean isUnique = columnInformation.isUnique();
+            String columnDataType = columnInformation.getDataType();
+            boolean isColumnPrimaryKey = columnInformation.isPrimaryKey();
+            boolean isColumnAutoIncrement = columnInformation.isAutoIncrement();
+            String columnDefaultValue = columnInformation.getDefaultValue();
+            boolean isColumnNullable = columnInformation.isNullable();
+            boolean isColumnUnique = columnInformation.isUnique();
 
             stringBuilder.append(columnName);
             stringBuilder.append(" ");
-            stringBuilder.append(dataType);
+            stringBuilder.append(columnDataType);
 
-            if ((primaryKeys == null || primaryKeys.length == 0) && isPrimaryKey) {
+            if ((tablePrimaryKeys == null || tablePrimaryKeys.length == 0) && isColumnPrimaryKey) {
                 stringBuilder.append(" PRIMARY KEY");
 
-                if (isAutoIncrement) {
+                if (isColumnAutoIncrement) {
                     stringBuilder.append(" AUTOINCREMENT");
                 }
             }
 
-            if (!TextUtils.isEmpty(defaultValue)) {
+            if (!TextUtils.isEmpty(columnDefaultValue)) {
                 stringBuilder.append(" DEFAULT '");
-                stringBuilder.append(defaultValue);
+                stringBuilder.append(columnDefaultValue);
                 stringBuilder.append("'");
             }
 
-            if (!isNullable) {
+            if (!isColumnNullable) {
                 stringBuilder.append(" NOT NULL");
             }
 
-            if (isUnique) {
+            if (isColumnUnique) {
                 stringBuilder.append(" UNIQUE");
             }
 
@@ -152,14 +152,14 @@ public class UtilsDatabaseSchema {
             i++;
         }
 
-        if (primaryKeys != null && primaryKeys.length > 0) {
+        if (tablePrimaryKeys != null && tablePrimaryKeys.length > 0) {
             stringBuilder.append(", PRIMARY KEY(");
 
             int j = 0;
-            for(String columnName : primaryKeys) {
+            for(String columnName : tablePrimaryKeys) {
                 stringBuilder.append(columnName);
 
-                if (j < (primaryKeys.length - 1)) {
+                if (j < (tablePrimaryKeys.length - 1)) {
                     stringBuilder.append(", ");
                 }
 
@@ -169,14 +169,14 @@ public class UtilsDatabaseSchema {
             stringBuilder.append(")");
         }
 
-        if (uniqueConstraint != null && uniqueConstraint.length > 0) {
+        if (tableUniqueConstraint != null && tableUniqueConstraint.length > 0) {
             stringBuilder.append(", UNIQUE(");
 
             int j = 0;
-            for(String columnName : uniqueConstraint) {
+            for(String columnName : tableUniqueConstraint) {
                 stringBuilder.append(columnName);
 
-                if (j < (uniqueConstraint.length - 1)) {
+                if (j < (tableUniqueConstraint.length - 1)) {
                     stringBuilder.append(", ");
                 }
 
