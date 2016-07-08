@@ -7,7 +7,6 @@ import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 
 import java.lang.reflect.Field;
 import java.util.Date;
-import java.util.List;
 
 public class UtilsDataType {
     public static final String DATA_TYPE__INTEGER = "INTEGER";
@@ -56,7 +55,7 @@ public class UtilsDataType {
         if (!columnDataType.isPrimitive() && columnDataType.isAnnotationPresent(Table.class) && pColumnField.isAnnotationPresent(ForeignKey.class)) {
             ForeignKey foreignKeyAnnotation = pColumnField.getAnnotation(ForeignKey.class);
 
-            String masterColumnName = foreignKeyAnnotation.masterColumnName();
+            String masterColumnName = foreignKeyAnnotation.referencedColumnName();
             if (TextUtils.isEmpty(masterColumnName)) {
                 masterColumnName = UtilsReflection.getColumnName(pColumnField);
             }

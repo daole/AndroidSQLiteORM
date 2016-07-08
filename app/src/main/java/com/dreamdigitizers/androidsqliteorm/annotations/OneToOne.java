@@ -10,8 +10,8 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD})
 public @interface OneToOne {
-    boolean isOptional() default false;
-    Class<?> detailTableClass() default void.class;
-    String detailColumnFieldName() default "";
+    boolean optional() default false;
+    Class<?> targetEntity() default void.class;
+    String mappedBy() default "";
     FetchType fetchType() default FetchType.LAZY;
 }

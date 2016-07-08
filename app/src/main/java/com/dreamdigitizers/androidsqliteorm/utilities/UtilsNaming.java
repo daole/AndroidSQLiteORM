@@ -1,13 +1,35 @@
 package com.dreamdigitizers.androidsqliteorm.utilities;
 
+import java.util.HashMap;
+
 public class UtilsNaming {
-    public static String buildAlias(String pTableName, String pColumnName) {
+    public static String buildTableAlias(Class pTableClass, HashMap<Class, Integer> pAliasHashMap) {
+        Integer number;
+        if (pAliasHashMap.containsKey(pTableClass)) {
+            number = pAliasHashMap.get(pTableClass);
+            number++;
+        } else {
+            number = 0;
+            pAliasHashMap.put(pTableClass, number);
+        }
+        return UtilsNaming.buildTableAlias(pTableClass, number);
+    }
+
+    public static String buildTableAlias(Class pTableClass, Integer pNumber) {
+        StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append(pTableClass.getSimpleName());
+        stringBuilder.append(pNumber.toString());
+        String alias = stringBuilder.toString();
+        return alias;
+    }
+
+    public static String buildColumnAlias(String pTableName, String pColumnName) {
         StringBuilder stringBuilder = new StringBuilder();
 
         stringBuilder.append(pTableName);
         stringBuilder.append(".");
         stringBuilder.append(pColumnName);
-        stringBuilder.append(" as ");
+        stringBuilder.append(" AS ");
         stringBuilder.append(pTableName);
         stringBuilder.append("_");
         stringBuilder.append(pColumnName);
