@@ -10,14 +10,14 @@ public class UtilsNaming {
             number++;
         } else {
             number = 0;
-            pAliasHashMap.put(pTableClass, number);
         }
+        pAliasHashMap.put(pTableClass, number);
         return UtilsNaming.buildTableAlias(pTableClass, number);
     }
 
     public static String buildTableAlias(Class pTableClass, Integer pNumber) {
         StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append(pTableClass.getSimpleName());
+        stringBuilder.append(UtilsReflection.getTableName(pTableClass));
         stringBuilder.append(pNumber.toString());
         String alias = stringBuilder.toString();
         return alias;
