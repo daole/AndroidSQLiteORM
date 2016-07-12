@@ -10,6 +10,6 @@ import java.lang.annotation.Target;
 public @interface Column {
     String name() default "";
     String defaultValue() default "";
-    boolean isNullable() default true;
-    boolean isUnique() default false;
+    boolean nullable() default true;
+    boolean unique() default false;
 }

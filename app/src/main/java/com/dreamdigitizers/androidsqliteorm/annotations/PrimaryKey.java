@@ -8,5 +8,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.FIELD})
 public @interface PrimaryKey {
-    boolean isAutoIncrement() default false;
+    boolean autoIncrement() default false;
 }

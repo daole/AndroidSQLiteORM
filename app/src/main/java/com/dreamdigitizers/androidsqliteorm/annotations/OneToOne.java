@@ -12,6 +12,6 @@ import java.lang.annotation.Target;
 public @interface OneToOne {
     boolean optional() default false;
     Class<?> foreignTableClass() default void.class;
-    String foreignColumnFieldName() default "";
+    String foreignColumnName() default "";
     FetchType fetchType() default FetchType.LAZY;
 }

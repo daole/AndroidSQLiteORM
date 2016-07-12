@@ -14,7 +14,7 @@ public class HelperSQLiteConfiguration extends SQLiteOpenHelper {
     HelperSQLiteConfiguration(SQLiteConfigurationInformation pSQLiteConfigurationInformation) {
         super(pSQLiteConfigurationInformation.getDatabaseContext(),
                 pSQLiteConfigurationInformation.getDatabaseName(),
-                null,
+                pSQLiteConfigurationInformation.getCursorFactory(),
                 pSQLiteConfigurationInformation.getDatabaseVersion());
         this.mSQLiteConfigurationInformation = pSQLiteConfigurationInformation;
     }
@@ -52,6 +52,7 @@ public class HelperSQLiteConfiguration extends SQLiteOpenHelper {
     public static class SQLiteConfigurationInformation {
         private Context mDatabaseContext;
         private String mDatabaseName;
+        private SQLiteDatabase.CursorFactory mCursorFactory;
         private int mDatabaseVersion;
         private long mDatabaseMaximumSize;
         private long mDatabasePageSize;
@@ -71,6 +72,14 @@ public class HelperSQLiteConfiguration extends SQLiteOpenHelper {
 
         public void setDatabaseName(String pDatabaseName) {
             this.mDatabaseName = pDatabaseName;
+        }
+
+        public SQLiteDatabase.CursorFactory getCursorFactory() {
+            return this.mCursorFactory;
+        }
+
+        public void setCursorFactory(SQLiteDatabase.CursorFactory pCursorFactory) {
+            this.mCursorFactory = pCursorFactory;
         }
 
         public int getDatabaseVersion() {

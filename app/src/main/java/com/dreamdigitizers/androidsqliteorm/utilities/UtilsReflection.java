@@ -138,12 +138,12 @@ public class UtilsReflection {
             columnInformation.setName(columnAnnotation.name());
             columnInformation.setDataType(UtilsDataType.inferColumnDataType(pColumnField));
             columnInformation.setDefaultValue(columnAnnotation.defaultValue());
-            columnInformation.setNullable(columnAnnotation.isNullable());
-            columnInformation.setUnique(columnAnnotation.isUnique());
+            columnInformation.setNullable(columnAnnotation.nullable());
+            columnInformation.setUnique(columnAnnotation.unique());
             if (pColumnField.isAnnotationPresent(PrimaryKey.class)) {
                 PrimaryKey primaryKeyAnnotation = pColumnField.getAnnotation(PrimaryKey.class);
                 columnInformation.setPrimaryKey(true);
-                columnInformation.setAutoIncrement(primaryKeyAnnotation.isAutoIncrement());
+                columnInformation.setAutoIncrement(primaryKeyAnnotation.autoIncrement());
             }
         }
         return columnInformation;
@@ -165,7 +165,7 @@ public class UtilsReflection {
         boolean isNullable = false;
         if (pColumnField.isAnnotationPresent(Column.class)) {
             Column columnAnnotation = pColumnField.getAnnotation(Column.class);
-            isNullable = columnAnnotation.isNullable();
+            isNullable = columnAnnotation.nullable();
         }
         return isNullable;
     }
@@ -174,7 +174,7 @@ public class UtilsReflection {
         boolean isUnique = false;
         if (pColumnField.isAnnotationPresent(Column.class)) {
             Column columnAnnotation = pColumnField.getAnnotation(Column.class);
-            isUnique = columnAnnotation.isUnique();
+            isUnique = columnAnnotation.unique();
         }
         return isUnique;
     }
@@ -198,7 +198,7 @@ public class UtilsReflection {
         String columnType = UtilsDataType.inferColumnDataType(pColumnField);
         if (UtilsDataType.DATA_TYPE__INTEGER.equals(columnType) && UtilsReflection.isPrimaryKey(pColumnField)) {
             PrimaryKey primaryKeyAnnotation = pColumnField.getAnnotation(PrimaryKey.class);
-            isAutoIncrement = primaryKeyAnnotation.isAutoIncrement();
+            isAutoIncrement = primaryKeyAnnotation.autoIncrement();
         }
         return isAutoIncrement;
     }
