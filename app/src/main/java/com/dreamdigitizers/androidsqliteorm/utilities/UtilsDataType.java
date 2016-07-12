@@ -55,7 +55,7 @@ public class UtilsDataType {
         if (!columnDataType.isPrimitive() && columnDataType.isAnnotationPresent(Table.class) && pColumnField.isAnnotationPresent(ForeignKey.class)) {
             ForeignKey foreignKeyAnnotation = pColumnField.getAnnotation(ForeignKey.class);
 
-            String masterColumnName = foreignKeyAnnotation.referencedColumnName();
+            String masterColumnName = foreignKeyAnnotation.primaryColumnName();
             if (TextUtils.isEmpty(masterColumnName)) {
                 masterColumnName = UtilsReflection.getColumnName(pColumnField);
             }

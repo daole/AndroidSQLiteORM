@@ -11,7 +11,7 @@ import java.lang.annotation.Target;
 @Target({ElementType.FIELD})
 public @interface OneToMany {
     boolean optional() default false;
-    Class<?> targetEntity() default void.class;
-    String mappedBy() default "";
+    Class<?> foreignTableClass() default void.class;
+    String foreignColumnFieldName() default "";
     FetchType fetchType() default FetchType.LAZY;
 }

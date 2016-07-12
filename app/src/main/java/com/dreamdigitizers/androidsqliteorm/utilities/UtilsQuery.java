@@ -10,6 +10,7 @@ import com.dreamdigitizers.androidsqliteorm.annotations.OneToOne;
 import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -17,55 +18,34 @@ public class UtilsQuery {
     public static void buildProjectionsAndTableClause(List<String> pProjections, StringBuilder pTableClauseBuilder, Class<?> pTableClass) {
         pProjections.clear();
         pTableClauseBuilder.setLength(0);
-        UtilsQuery.buildProjectionsAndTableClause(pProjections, pTableClauseBuilder, pTableClass, new HashMap<Class, Integer>());
+        UtilsQuery.buildProjectionsAndTableClause(pProjections, pTableClauseBuilder, pTableClass, null, new HashMap<Class, Integer>(), new ArrayList<Relationship>());
     }
 
-    public static void buildProjectionsAndTableClause(List<String> pProjections, StringBuilder pTableClause, Class<?> pTableClass, HashMap<Class, Integer> pAliasHashMap) {
+    public static void buildProjectionsAndTableClause(List<String> pProjections, StringBuilder pTableClauseBuilder, Class<?> pTableClass, String pTableAlias, HashMap<Class, Integer> pTableAliasHashMap, List<Relationship> pRelationships) {
         if (UtilsReflection.isTableClass(pTableClass)) {
             String tableName = UtilsReflection.getTableName(pTableClass);
-            String tableAlias = UtilsNaming.buildTableAlias(pTableClass, pAliasHashMap);
-
-            if (TextUtils.isEmpty(pTableClause)) {
-                pTableClause.append(tableName);
-                pTableClause.append(" AS ");
-                pTableClause.append(tableAlias);
+            if (TextUtils.isEmpty(pTableAlias)) {
+                pTableAlias = UtilsNaming.buildTableAlias(pTableClass, pTableAliasHashMap);
             }
 
-            /*
-            boolean isJoin = false;
-
-            if (pTableClause.length() != 0) {
-                isJoin = true;
-
-                if (pIsOptional) {
-                    pTableClause.append(" LEFT");
-                }
-
-                pTableClause.append(" JOIN ");
+            // Add the first processed table class to the table clause
+            if (TextUtils.isEmpty(pTableClauseBuilder)) {
+                pTableClauseBuilder.append(tableName);
+                pTableClauseBuilder.append(" AS ");
+                pTableClauseBuilder.append(pTableAlias);
             }
-
-            String tableAlias = UtilsNaming.buildTableAlias(pTableClass, pAliasHashMap);
-            pTableClause.append(tableName);
-            pTableClause.append(" AS ");
-            pTableClause.append(tableAlias);
-
-            if (isJoin) {
-                pTableClause.append(" ON ");
-                pTableClause.append(pJoinClause);
-            }
-            */
 
             List<Field> selectableColumnFields = UtilsReflection.getAllSelectableColumnFields(pTableClass);
             for (Field selectableColumnField : selectableColumnFields) {
-                String columnName = UtilsReflection.getColumnName(selectableColumnField);
                 Class<?> columnDataType = selectableColumnField.getType();
 
                 if (columnDataType.isPrimitive()) {
                     // Process normal column
-                    String columnAlias = UtilsNaming.buildColumnAlias(tableAlias, columnName);
+                    String columnName = UtilsReflection.getColumnName(selectableColumnField);
+                    String columnAlias = UtilsNaming.buildColumnAlias(pTableAlias, columnName);
                     pProjections.add(columnAlias);
                 } else {
-                    // Process column referencing to another table
+                    // Process column referencing another table
 
                     /*
                     // Check if this column references to a valid table
@@ -74,156 +54,195 @@ public class UtilsQuery {
                     }
                     */
 
-                    boolean optional;
-                    Class<?> targetEntity;
-                    String mappedBy;
-                    FetchType fetchType;
+                    boolean annotationOptional;
+                    Class<?> annotationForeignTableClass;
+                    String annotationForeignColumnFieldName;
+                    FetchType annotationFetchType;
 
                     // Retrieve relationship information
                     if (selectableColumnField.isAnnotationPresent(OneToOne.class)) {
                         OneToOne oneToOneAnnotation = selectableColumnField.getAnnotation(OneToOne.class);
 
-                        optional = oneToOneAnnotation.optional();
-                        targetEntity = oneToOneAnnotation.targetEntity();
-                        mappedBy = oneToOneAnnotation.mappedBy();
-                        fetchType = oneToOneAnnotation.fetchType();
+                        annotationOptional = oneToOneAnnotation.optional();
+                        annotationForeignTableClass = oneToOneAnnotation.foreignTableClass();
+                        annotationForeignColumnFieldName = oneToOneAnnotation.foreignColumnFieldName();
+                        annotationFetchType = oneToOneAnnotation.fetchType();
                     } else if (selectableColumnField.isAnnotationPresent(OneToMany.class)) {
                         OneToMany oneToManyAnnotation = selectableColumnField.getAnnotation(OneToMany.class);
 
-                        optional = oneToManyAnnotation.optional();
-                        targetEntity = oneToManyAnnotation.targetEntity();
-                        mappedBy = oneToManyAnnotation.mappedBy();
-                        fetchType = oneToManyAnnotation.fetchType();
+                        annotationOptional = oneToManyAnnotation.optional();
+                        annotationForeignTableClass = oneToManyAnnotation.foreignTableClass();
+                        annotationForeignColumnFieldName = oneToManyAnnotation.foreignColumnFieldName();
+                        annotationFetchType = oneToManyAnnotation.fetchType();
                     } else if (selectableColumnField.isAnnotationPresent(ManyToOne.class)) {
                         ManyToOne manyToOneAnnotation = selectableColumnField.getAnnotation(ManyToOne.class);
 
-                        optional = manyToOneAnnotation.optional();
-                        targetEntity = manyToOneAnnotation.targetEntity();
-                        mappedBy = manyToOneAnnotation.mappedBy();
-                        fetchType = manyToOneAnnotation.fetchType();
+                        annotationOptional = manyToOneAnnotation.optional();
+                        annotationForeignTableClass = manyToOneAnnotation.foreignTableClass();
+                        annotationForeignColumnFieldName = manyToOneAnnotation.foreignColumnFieldName();
+                        annotationFetchType = manyToOneAnnotation.fetchType();
                     } else {
                         throw new RuntimeException(String.format("Field '%s' in the class '%s' must be annotated with one of relationship annotation.", selectableColumnField.getName(), pTableClass.getSimpleName()));
                     }
 
-                    if (fetchType == FetchType.EAGER) {
+                    if (annotationFetchType == FetchType.EAGER) {
                         boolean isForeignKey = selectableColumnField.isAnnotationPresent(ForeignKey.class);
 
-                        String masterTableName = null;
-                        Class<?> masterTableClass = null;
+                        String nextProcessedTableAlias;
 
-                        String masterColumnName = null;
-                        Field masterColumnField = null;
+                        Class<?> primaryTableClass;
+                        String primaryTableAlias;
 
-                        String detailTableName = null;
-                        Class<?> detailTableClass = null;
+                        Field primaryColumnField;
+                        String primaryColumnName;
 
-                        String detailColumnName = null;
-                        Field detailColumnField = null;
+                        Class<?> foreignTableClass;
+                        String foreignTableAlias;
 
-                        // Process detail table and detail column if they are specified in the relationship annotation
-                        if (targetEntity != void.class || !TextUtils.isEmpty(mappedBy)) {
+                        Field foreignColumnField;
+                        String foreignColumnName;
+
+                        // Process foreign table and foreign column if they are specified in the relationship annotation
+                        if (annotationForeignTableClass != void.class || !TextUtils.isEmpty(annotationForeignColumnFieldName)) {
                             if (isForeignKey) {
-                                // If the column being processed is a foreign key, it must not specify detail table and detail column
-
-                                throw new RuntimeException(String.format("Field '%s' in the class '%s' is a foreign key, so it must not specify targetEntity and mappedBy in its relationship annotation.", selectableColumnField.getName(), pTableClass.getSimpleName()));
+                                // If the column being processed is a foreign key, it must not specify foreignColumnFieldName and foreignTableClass
+                                throw new RuntimeException(String.format("Field '%s' in the class '%s' is a foreign key, so it must not specify foreignTableClass and foreignColumnFieldName in its relationship annotation.", selectableColumnField.getName(), pTableClass.getSimpleName()));
                             } else {
-                                // Check if detail table is specified
-                                if (targetEntity == void.class) {
-                                    // throw new RuntimeException(String.format("Field '%s' in the class '%s' does not specify targetEntity in its relationship annotation", selectableColumnField.getName(), pTableClass.getSimpleName()));
-                                    targetEntity = columnDataType;
+                                // Check if foreign table is specified
+                                if (annotationForeignTableClass == void.class) {
+                                    annotationForeignTableClass = columnDataType;
                                 }
 
-                                // Check if detail column is specified
-                                if (TextUtils.isEmpty(mappedBy)) {
-                                    throw new RuntimeException(String.format("Field '%s' in the class '%s' does not specify mappedBy in its relationship annotation", selectableColumnField.getName(), pTableClass.getSimpleName()));
+                                // Check if foreign column is specified
+                                if (TextUtils.isEmpty(annotationForeignColumnFieldName)) {
+                                    throw new RuntimeException(String.format("Field '%s' in the class '%s' does not specify annotationForeignColumnFieldName in its relationship annotation", selectableColumnField.getName(), pTableClass.getSimpleName()));
                                 }
 
-                                // Check if the detail column exists in the detail table
-                                Field mappedByField = UtilsReflection.getColumnFieldByColumnName(mappedBy, targetEntity);
-                                if (mappedByField == null) {
-                                    throw new RuntimeException(String.format("There is no mappedBy field '%s' in the table class '%s'.", mappedBy, targetEntity.getSimpleName()));
+                                // Foreign table is the table specified in the relationship annotation
+                                foreignTableClass = annotationForeignTableClass;
+                                foreignTableAlias = UtilsNaming.buildTableAlias(foreignTableClass, pTableAliasHashMap);
+                                nextProcessedTableAlias = foreignTableAlias;
+
+                                // Check if the foreign column exists in the foreign table
+                                // Foreign column is the column specified in the relationship annotation
+                                foreignColumnField = UtilsReflection.getColumnFieldByColumnName(annotationForeignColumnFieldName, annotationForeignTableClass);
+                                if (foreignColumnField == null) {
+                                    throw new RuntimeException(String.format("There is no annotationForeignColumnFieldName field '%s' in the table class '%s'.", annotationForeignColumnFieldName, annotationForeignTableClass.getSimpleName()));
                                 }
+                                foreignColumnName = annotationForeignColumnFieldName;
 
-                                // Check if the detail column is a foreign key
-                                if (mappedByField.isAnnotationPresent(ForeignKey.class)) {
-                                    ForeignKey foreignKeyAnnotation = mappedByField.getAnnotation(ForeignKey.class);
+                                // Check if the foreign column is a foreign key
+                                if (foreignColumnField.isAnnotationPresent(ForeignKey.class)) {
+                                    ForeignKey foreignKeyAnnotation = foreignColumnField.getAnnotation(ForeignKey.class);
 
-                                    // Detail column is the column specified in the relationship annotation
-                                    detailColumnName = UtilsReflection.getColumnName(mappedByField);
-                                    detailColumnField = mappedByField;
+                                    // Primary column is the primary column specified in foreign key annotation
+                                    primaryColumnName = foreignKeyAnnotation.primaryColumnName();
+                                    if (TextUtils.isEmpty(primaryColumnName)) {
+                                        primaryColumnName = UtilsReflection.getColumnName(foreignColumnField);
+                                    }
 
-                                    // Master column is the master column specified in foreign key annotation
-                                    masterColumnName = foreignKeyAnnotation.referencedColumnName();
-                                    if (TextUtils.isEmpty(masterColumnName)) {
-                                        masterColumnName = UtilsReflection.getColumnName(mappedByField);
+                                    // Primary table class is the class of foreign column
+                                    primaryTableClass = foreignColumnField.getType();
+                                    if (pTableClass != primaryTableClass) {
+                                        throw new RuntimeException(String.format("The type of the field '%s' in the table class '%s' should be '%s'.", foreignColumnField.getName(), foreignTableClass.getSimpleName(), pTableClass.getSimpleName()));
+                                    }
+                                    primaryTableAlias = pTableAlias;
+
+                                    // Check if the primary column exists in the primary table
+                                    primaryColumnField = UtilsReflection.getColumnFieldByColumnName(primaryColumnName, primaryTableClass);
+                                    if (primaryColumnField == null) {
+                                        throw new RuntimeException(String.format("There is no primaryColumnName '%s' in the table class '%s'.", primaryColumnName, primaryTableClass.getSimpleName()));
                                     }
                                 } else {
-                                    throw new RuntimeException(String.format("MappedBy field '%s' in the table class '%s' should be annotated with %s.", mappedBy, targetEntity.getSimpleName(), ForeignKey.class.getSimpleName()));
+                                    throw new RuntimeException(String.format("MappedBy field '%s' in the table class '%s' should be annotated with %s.", annotationForeignColumnFieldName, annotationForeignTableClass.getSimpleName(), ForeignKey.class.getSimpleName()));
                                 }
-
-                                // Master table is the table currently being processed
-                                masterTableName = tableName;
-
-                                // Detail table name is the table specified in the relationship annotation
-                                detailTableName = UtilsReflection.getTableName(targetEntity);
                             }
-                        } else if (!isForeignKey) {
-                            throw new RuntimeException(String.format("Field '%s' in the class '%s' is not a foreign key, so it must specify mappedBy in its relationship annotation.", selectableColumnField.getName(), pTableClass.getSimpleName()));
-                        }
-
-                        // Process foreign key annotation if there is one
-                        if (isForeignKey) {
+                        } else if (isForeignKey) {
                             // This column is a foreign key
 
                             ForeignKey foreignKeyAnnotation = selectableColumnField.getAnnotation(ForeignKey.class);
 
-                            // Master table is the table to be joint
-                            masterTableName = UtilsReflection.getTableName(columnDataType);
-                            masterTableClass = columnDataType;
+                            // Foreign table is the table currently being processed
+                            foreignTableClass = pTableClass;
+                            foreignTableAlias = pTableAlias;
 
-                            // Master column is the column in the master table
-                            masterColumnName = foreignKeyAnnotation.referencedColumnName();
-                            if (TextUtils.isEmpty(masterColumnName)) {
-                                masterColumnName = columnName;
+                            // Foreign column this the column currently being processed
+                            foreignColumnField = selectableColumnField;
+                            foreignColumnName = UtilsReflection.getColumnName(selectableColumnField);
+
+                            // Primary table class is the class of foreign column
+                            primaryTableClass = columnDataType;
+                            primaryTableAlias = UtilsNaming.buildTableAlias(primaryTableClass, pTableAliasHashMap);
+                            nextProcessedTableAlias = primaryTableAlias;
+
+                            // Primary column is the primary column specified in foreign key annotation
+                            primaryColumnName = foreignKeyAnnotation.primaryColumnName();
+                            if (TextUtils.isEmpty(primaryColumnName)) {
+                                primaryColumnName = foreignColumnName;
                             }
 
-                            // Check if the master column exists in the master table
-                            masterColumnField = UtilsReflection.getColumnFieldByColumnName(masterColumnName, masterTableClass);
-                            if (masterColumnField == null) {
-                                throw new RuntimeException(String.format("There is no column field '%s' in the table class '%s'", masterColumnName, columnDataType.getSimpleName()));
+                            // Check if the primary column exists in the primary table
+                            primaryColumnField = UtilsReflection.getColumnFieldByColumnName(primaryColumnName, primaryTableClass);
+                            if (primaryColumnField == null) {
+                                throw new RuntimeException(String.format("There is no column field '%s' in the table class '%s'", primaryColumnName, primaryTableClass.getSimpleName()));
                             }
-
-                            // Detail table is the table currently being processed
-                            detailTableName = tableName;
-                            detailTableClass = pTableClass;
-                            //targetEntity = pTableClass;
-
-                            // Detail column this the column currently being processed
-                            detailColumnName = columnName;
-                            detailColumnField = selectableColumnField;
+                        } else {
+                            throw new RuntimeException(String.format("Field '%s' in the class '%s' is not a foreign key, so it must specify annotationForeignColumnFieldName in its relationship annotation.", selectableColumnField.getName(), pTableClass.getSimpleName()));
                         }
-
-                        StringBuilder stringBuilder = new StringBuilder();
-                        stringBuilder.append(masterTableName);
-                        stringBuilder.append(".");
-                        stringBuilder.append(masterColumnName);
-                        stringBuilder.append(" = ");
-                        stringBuilder.append(detailTableName);
-                        stringBuilder.append(".");
-                        stringBuilder.append(detailColumnName);
-                        String joinClause = stringBuilder.toString();
 
                         // Check if this join is already processed
-                        if (pTableClause.indexOf(joinClause) > -1) {
-                            continue;
-                        }
+                        Relationship relationship = new Relationship(primaryTableClass, primaryColumnField, foreignTableClass, foreignColumnField);
+                        if (!pRelationships.contains(relationship)) {
+                            pRelationships.add(relationship);
+                        
+                            if (annotationOptional) {
+                                pTableClauseBuilder.append(" LEFT");
+                            }
+                            pTableClauseBuilder.append(" JOIN ");
+                            pTableClauseBuilder.append(nextProcessedTableAlias);
+                            pTableClauseBuilder.append(" ON ");
+                            pTableClauseBuilder.append(primaryTableAlias);
+                            pTableClauseBuilder.append(".");
+                            pTableClauseBuilder.append(primaryColumnName);
+                            pTableClauseBuilder.append(" = ");
+                            pTableClauseBuilder.append(foreignTableAlias);
+                            pTableClauseBuilder.append(".");
+                            pTableClauseBuilder.append(foreignColumnName);
 
-                        UtilsQuery.buildProjectionsAndTableClause(pProjections, pTableClause, columnDataType, pAliasHashMap);
+                            UtilsQuery.buildProjectionsAndTableClause(pProjections, pTableClauseBuilder, columnDataType, nextProcessedTableAlias, pTableAliasHashMap, pRelationships);
+                        }
                     }
                 }
             }
         } else {
             throw new RuntimeException(String.format("%s is not annotated with %s", pTableClass.getSimpleName(), Table.class.getSimpleName()));
+        }
+    }
+
+    private static class Relationship {
+        private Class<?> mPrimaryTable;
+        private Field mPrimaryColumnField;
+        private Class<?> mForeignTable;
+        private Field mForeignColumnField;
+
+        public Relationship(Class<?> pPrimaryTable, Field pPrimaryColumnField, Class<?> pForeignTable, Field pForeignColumnField) {
+            this.mPrimaryTable = pPrimaryTable;
+            this.mPrimaryColumnField = pPrimaryColumnField;
+            this.mForeignTable = pForeignTable;
+            this.mForeignColumnField = pForeignColumnField;
+        }
+
+        @Override
+        public boolean equals(Object pObject) {
+            boolean isEqual = false;
+            if (pObject != null && pObject instanceof Relationship) {
+                Relationship relationship = (Relationship) pObject;
+                isEqual = this.mPrimaryTable == relationship.mPrimaryTable
+                        && this.mPrimaryColumnField == relationship.mPrimaryColumnField
+                        && this.mForeignTable == relationship.mForeignTable
+                        && this.mForeignColumnField == relationship.mForeignColumnField;
+            }
+            return isEqual;
         }
     }
 }
