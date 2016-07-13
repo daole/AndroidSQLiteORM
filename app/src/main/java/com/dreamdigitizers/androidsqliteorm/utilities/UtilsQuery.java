@@ -10,9 +10,7 @@ import com.dreamdigitizers.androidsqliteorm.annotations.OneToOne;
 import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 
@@ -39,15 +37,9 @@ public class UtilsQuery {
 
             List<Field> selectableColumnFields = UtilsReflection.getAllSelectableColumnFields(pTableClass);
             for (Field selectableColumnField : selectableColumnFields) {
-                Class<?> columnDataType = selectableColumnField.getType();
-                if (columnDataType.isArray()) {
-                    columnDataType = columnDataType.getComponentType();
-                } else if (Collection.class.isAssignableFrom(columnDataType)) {
-                    ParameterizedType parameterizedType = (ParameterizedType) selectableColumnField.getGenericType();
-                    columnDataType = (Class<?>) parameterizedType.getActualTypeArguments()[0];
-                }
+                Class<?> columnDataType = UtilsReflection.extractEssentialFieldType(selectableColumnField);
 
-                if (columnDataType.isPrimitive() || columnDataType == String.class) {
+                if (UtilsDataType.isSQLitePrimitiveDataType(columnDataType)) {
                     // Process normal column
                     String columnName = UtilsReflection.getColumnName(selectableColumnField);
                     String columnAlias = UtilsNaming.buildColumnAlias(pTableAlias, columnName);
@@ -55,12 +47,10 @@ public class UtilsQuery {
                 } else {
                     // Process column referencing another table
 
-                    /*
                     // Check if this column references to a valid table
                     if (!UtilsReflection.isTableClass(columnDataType)) {
                         throw new RuntimeException(String.format("%s is not annotated with %s.", columnDataType.getSimpleName(), Table.class.getSimpleName()));
                     }
-                    */
 
                     boolean annotationOptional;
                     Class<?> annotationForeignTableClass;
@@ -96,16 +86,16 @@ public class UtilsQuery {
                     if (annotationFetchType == FetchType.EAGER) {
                         boolean isForeignKey = selectableColumnField.isAnnotationPresent(ForeignKey.class);
 
-                        String nextProcessedTableAlias;
+                        Class<?> nextProcessedTableClass;
 
                         Class<?> primaryTableClass;
-                        String primaryTableAlias;
+                        String primaryTableAlias = null;
 
                         Field primaryColumnField;
                         String primaryColumnName;
 
                         Class<?> foreignTableClass;
-                        String foreignTableAlias;
+                        String foreignTableAlias = null;
 
                         Field foreignColumnField;
                         String foreignColumnName;
@@ -128,8 +118,7 @@ public class UtilsQuery {
 
                                 // Foreign table is the table specified in the relationship annotation
                                 foreignTableClass = annotationForeignTableClass;
-                                foreignTableAlias = UtilsNaming.buildTableAlias(foreignTableClass, pTableAliasHashMap);
-                                nextProcessedTableAlias = foreignTableAlias;
+                                nextProcessedTableClass = foreignTableClass;
 
                                 // Check if the foreign column exists in the foreign table
                                 // Foreign column is the column specified in the relationship annotation
@@ -180,8 +169,7 @@ public class UtilsQuery {
 
                             // Primary table class is the class of foreign column
                             primaryTableClass = columnDataType;
-                            primaryTableAlias = UtilsNaming.buildTableAlias(primaryTableClass, pTableAliasHashMap);
-                            nextProcessedTableAlias = primaryTableAlias;
+                            nextProcessedTableClass = primaryTableClass;
 
                             // Primary column is the primary column specified in foreign key annotation
                             primaryColumnName = foreignKeyAnnotation.primaryColumnName();
@@ -202,11 +190,29 @@ public class UtilsQuery {
                         Relationship relationship = new Relationship(primaryTableClass, primaryColumnField, foreignTableClass, foreignColumnField);
                         if (!pRelationships.contains(relationship)) {
                             pRelationships.add(relationship);
+
+                            if (TextUtils.isEmpty(primaryTableAlias)) {
+                                primaryTableAlias = UtilsNaming.buildTableAlias(primaryTableClass, pTableAliasHashMap);
+                            }
+
+                            if (TextUtils.isEmpty(foreignTableAlias)) {
+                                foreignTableAlias = UtilsNaming.buildTableAlias(foreignTableClass, pTableAliasHashMap);
+                            }
+
+                            String nextProcessedTableName = UtilsReflection.getTableName(nextProcessedTableClass);
+                            String nextProcessedTableAlias = null;
+                            if (nextProcessedTableClass.equals(primaryTableClass)) {
+                                nextProcessedTableAlias = primaryTableAlias;
+                            } else if (nextProcessedTableClass.equals(foreignTableClass)) {
+                                nextProcessedTableAlias = foreignTableAlias;
+                            }
                         
                             if (annotationOptional) {
                                 pTableClauseBuilder.append(" LEFT");
                             }
                             pTableClauseBuilder.append(" JOIN ");
+                            pTableClauseBuilder.append(nextProcessedTableName);
+                            pTableClauseBuilder.append(" AS ");
                             pTableClauseBuilder.append(nextProcessedTableAlias);
                             pTableClauseBuilder.append(" ON ");
                             pTableClauseBuilder.append(primaryTableAlias);
@@ -228,15 +234,15 @@ public class UtilsQuery {
     }
 
     private static class Relationship {
-        private Class<?> mPrimaryTable;
+        private Class<?> mPrimaryTableClass;
         private Field mPrimaryColumnField;
-        private Class<?> mForeignTable;
+        private Class<?> mForeignTableClass;
         private Field mForeignColumnField;
 
-        public Relationship(Class<?> pPrimaryTable, Field pPrimaryColumnField, Class<?> pForeignTable, Field pForeignColumnField) {
-            this.mPrimaryTable = pPrimaryTable;
+        public Relationship(Class<?> pPrimaryTableClass, Field pPrimaryColumnField, Class<?> pForeignTableClass, Field pForeignColumnField) {
+            this.mPrimaryTableClass = pPrimaryTableClass;
             this.mPrimaryColumnField = pPrimaryColumnField;
-            this.mForeignTable = pForeignTable;
+            this.mForeignTableClass = pForeignTableClass;
             this.mForeignColumnField = pForeignColumnField;
         }
 
@@ -245,9 +251,9 @@ public class UtilsQuery {
             boolean isEqual = false;
             if (pObject != null && pObject instanceof Relationship) {
                 Relationship relationship = (Relationship) pObject;
-                isEqual = this.mPrimaryTable.equals(relationship.mPrimaryTable)
+                isEqual = this.mPrimaryTableClass.equals(relationship.mPrimaryTableClass)
                         && this.mPrimaryColumnField.equals(relationship.mPrimaryColumnField)
-                        && this.mForeignTable.equals(relationship.mForeignTable)
+                        && this.mForeignTableClass.equals(relationship.mForeignTableClass)
                         && this.mForeignColumnField.equals(relationship.mForeignColumnField);
             }
             return isEqual;

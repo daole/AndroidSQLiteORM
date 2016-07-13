@@ -13,13 +13,26 @@ import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.List;
 
 import dalvik.system.DexFile;
 
 public class UtilsReflection {
+    public static Class<?> extractEssentialFieldType(Field pField) {
+        Class<?> clazz = pField.getType();
+        if (clazz.isArray()) {
+            clazz = clazz.getComponentType();
+        } else if (Collection.class.isAssignableFrom(clazz)) {
+            ParameterizedType parameterizedType = (ParameterizedType) pField.getGenericType();
+            clazz = (Class<?>) parameterizedType.getActualTypeArguments()[0];
+        }
+        return clazz;
+    }
+
     public static List<Class<?>> getTableClasses(Context pContext) throws IOException, ClassNotFoundException {
         List<Class<?>> tableClasses = new ArrayList<>();
         DexFile dexFile = new DexFile(pContext.getApplicationInfo().sourceDir);
