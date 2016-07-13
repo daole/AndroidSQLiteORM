@@ -18,10 +18,10 @@ public class UtilsQuery {
     public static void buildProjectionsAndTableClause(List<String> pProjections, StringBuilder pTableClauseBuilder, Class<?> pTableClass) {
         pProjections.clear();
         pTableClauseBuilder.setLength(0);
-        UtilsQuery.buildProjectionsAndTableClause(pProjections, pTableClauseBuilder, pTableClass, null, new HashMap<Class, Integer>(), new ArrayList<Relationship>());
+        UtilsQuery.buildProjectionsAndTableClause(pProjections, pTableClauseBuilder, pTableClass, null, new HashMap<Class, Integer>(), null);
     }
 
-    public static void buildProjectionsAndTableClause(List<String> pProjections, StringBuilder pTableClauseBuilder, Class<?> pTableClass, String pTableAlias, HashMap<Class, Integer> pTableAliasHashMap, List<Relationship> pRelationships) {
+    public static void buildProjectionsAndTableClause(List<String> pProjections, StringBuilder pTableClauseBuilder, Class<?> pTableClass, String pTableAlias, HashMap<Class, Integer> pTableAliasHashMap, Relationship pRelationship) {
         if (UtilsReflection.isTableClass(pTableClass)) {
             String tableName = UtilsReflection.getTableName(pTableClass);
             if (TextUtils.isEmpty(pTableAlias)) {
@@ -188,9 +188,7 @@ public class UtilsQuery {
 
                         // Check if this join is already processed
                         Relationship relationship = new Relationship(primaryTableClass, primaryColumnField, foreignTableClass, foreignColumnField);
-                        if (!pRelationships.contains(relationship)) {
-                            pRelationships.add(relationship);
-
+                        if (!relationship.equals(pRelationship)) {
                             if (TextUtils.isEmpty(primaryTableAlias)) {
                                 primaryTableAlias = UtilsNaming.buildTableAlias(primaryTableClass, pTableAliasHashMap);
                             }
@@ -223,7 +221,7 @@ public class UtilsQuery {
                             pTableClauseBuilder.append(".");
                             pTableClauseBuilder.append(foreignColumnName);
 
-                            UtilsQuery.buildProjectionsAndTableClause(pProjections, pTableClauseBuilder, columnDataType, nextProcessedTableAlias, pTableAliasHashMap, pRelationships);
+                            UtilsQuery.buildProjectionsAndTableClause(pProjections, pTableClauseBuilder, columnDataType, nextProcessedTableAlias, pTableAliasHashMap, relationship);
                         }
                     }
                 }
