@@ -10,7 +10,6 @@ import com.dreamdigitizers.androidsqliteorm.annotations.OneToOne;
 import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 
 import java.lang.reflect.Field;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -41,6 +40,7 @@ public class UtilsQuery {
 
                 if (UtilsDataType.isSQLitePrimitiveDataType(columnDataType)) {
                     // Process normal column
+
                     String columnName = UtilsReflection.getColumnName(selectableColumnField);
                     String columnAlias = UtilsNaming.buildColumnAlias(pTableAlias, columnName);
                     pProjections.add(columnAlias);
@@ -231,7 +231,7 @@ public class UtilsQuery {
         }
     }
 
-    private static class Relationship {
+    public static class Relationship {
         private Class<?> mPrimaryTableClass;
         private Field mPrimaryColumnField;
         private Class<?> mForeignTableClass;
