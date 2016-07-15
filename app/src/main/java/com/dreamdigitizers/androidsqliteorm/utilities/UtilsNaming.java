@@ -32,12 +32,18 @@ public class UtilsNaming {
     }
 
     public static String buildColumnAlias(String pTableName, String pColumnName) {
+        return UtilsNaming.buildColumnAlias(pTableName, pColumnName, true);
+    }
+
+    public static String buildColumnAlias(String pTableName, String pColumnName, boolean pIsIncludeAsClause) {
         StringBuilder stringBuilder = new StringBuilder();
 
-        stringBuilder.append(pTableName);
-        stringBuilder.append(".");
-        stringBuilder.append(pColumnName);
-        stringBuilder.append(" AS ");
+        if (pIsIncludeAsClause) {
+            stringBuilder.append(pTableName);
+            stringBuilder.append(".");
+            stringBuilder.append(pColumnName);
+            stringBuilder.append(" AS ");
+        }
         stringBuilder.append(pTableName);
         stringBuilder.append("_");
         stringBuilder.append(pColumnName);

@@ -17,9 +17,7 @@ public class UtilsDatabaseSchema {
     public static void createDatabaseSchema(Context pContext, SQLiteDatabase pSQLiteDatabase) {
         try {
             List<Class<?>> tableClasses = UtilsReflection.getTableClasses(pContext);
-            for (Class<?> tableClass : tableClasses) {
-                UtilsDatabaseSchema.createTable(tableClass, pSQLiteDatabase);
-            }
+            UtilsDatabaseSchema.createDatabaseSchema(tableClasses, pSQLiteDatabase);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } catch (ClassNotFoundException e) {
@@ -27,23 +25,33 @@ public class UtilsDatabaseSchema {
         }
     }
 
+    public static void createDatabaseSchema(List<Class<?>> pTableClasses, SQLiteDatabase pSQLiteDatabase) {
+        for (Class<?> tableClass : pTableClasses) {
+            UtilsDatabaseSchema.createTable(tableClass, pSQLiteDatabase);
+        }
+    }
+
     public static void updateDatabaseSchema(Context pContext, SQLiteDatabase pSQLiteDatabase) {
         try {
             List<Class<?>> tableClasses = UtilsReflection.getTableClasses(pContext);
-            for (Class<?> tableClass : tableClasses) {
-                UtilsDatabaseSchema.createTable(tableClass, pSQLiteDatabase);
-                String tableName = UtilsReflection.getTableName(tableClass);
-                Cursor cursor = pSQLiteDatabase.query("sqlite_master", null, "type = 'table' AND name = ?", new String[] { tableName }, null, null, null);
-                if (cursor.getCount() == 0) {
-                    UtilsDatabaseSchema.createTable(tableClass, pSQLiteDatabase);
-                } else {
-                    UtilsDatabaseSchema.updateTableIfNecessary(tableClass, pSQLiteDatabase);
-                }
-            }
+            UtilsDatabaseSchema.updateDatabaseSchema(tableClasses, pSQLiteDatabase);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    public static void updateDatabaseSchema(List<Class<?>> pTableClasses, SQLiteDatabase pSQLiteDatabase) {
+        for (Class<?> tableClass : pTableClasses) {
+            UtilsDatabaseSchema.createTable(tableClass, pSQLiteDatabase);
+            String tableName = UtilsReflection.getTableName(tableClass);
+            Cursor cursor = pSQLiteDatabase.query("sqlite_master", null, "type = 'table' AND name = ?", new String[] { tableName }, null, null, null);
+            if (cursor.getCount() == 0) {
+                UtilsDatabaseSchema.createTable(tableClass, pSQLiteDatabase);
+            } else {
+                UtilsDatabaseSchema.updateTableIfNecessary(tableClass, pSQLiteDatabase);
+            }
         }
     }
 

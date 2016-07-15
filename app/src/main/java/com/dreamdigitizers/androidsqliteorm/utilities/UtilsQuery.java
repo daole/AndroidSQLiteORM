@@ -38,12 +38,11 @@ public class UtilsQuery {
             for (Field selectableColumnField : selectableColumnFields) {
                 Class<?> columnDataType = UtilsReflection.extractEssentialFieldType(selectableColumnField);
 
+                boolean shouldAddToProjections = false;
                 if (UtilsDataType.isSQLitePrimitiveDataType(columnDataType)) {
                     // Process normal column
 
-                    String columnName = UtilsReflection.getColumnName(selectableColumnField);
-                    String columnAlias = UtilsNaming.buildColumnAlias(pTableAlias, columnName);
-                    pProjections.add(columnAlias);
+                    shouldAddToProjections = true;
                 } else {
                     // Process column referencing another table
 
@@ -84,7 +83,7 @@ public class UtilsQuery {
                     }
 
                     if (annotationFetchType == FetchType.EAGER) {
-                        boolean isForeignKey = selectableColumnField.isAnnotationPresent(ForeignKey.class);
+                        boolean isForeignField = UtilsReflection.isForeignField(selectableColumnField);
 
                         Class<?> nextProcessedTableClass;
 
@@ -102,7 +101,7 @@ public class UtilsQuery {
 
                         // Process foreign table and foreign column if they are specified in the relationship annotation
                         if (annotationForeignTableClass != void.class || !TextUtils.isEmpty(annotationForeignColumnName)) {
-                            if (isForeignKey) {
+                            if (isForeignField) {
                                 // If the column being processed is a foreign key, it must not specify foreignColumnName and foreignTableClass
                                 throw new RuntimeException(String.format("Field '%s' in the class '%s' is a foreign key, so it must not specify foreignTableClass and foreignColumnName in its relationship annotation.", selectableColumnField.getName(), pTableClass.getSimpleName()));
                             } else {
@@ -122,14 +121,14 @@ public class UtilsQuery {
 
                                 // Check if the foreign column exists in the foreign table
                                 // Foreign column is the column specified in the relationship annotation
-                                foreignColumnField = UtilsReflection.getColumnFieldByColumnName(annotationForeignColumnName, annotationForeignTableClass);
+                                foreignColumnField = UtilsReflection.findColumnFieldByColumnName(annotationForeignColumnName, annotationForeignTableClass);
                                 if (foreignColumnField == null) {
                                     throw new RuntimeException(String.format("There is no annotationForeignColumnName field '%s' in the table class '%s'.", annotationForeignColumnName, annotationForeignTableClass.getSimpleName()));
                                 }
                                 foreignColumnName = annotationForeignColumnName;
 
                                 // Check if the foreign column is a foreign key
-                                if (foreignColumnField.isAnnotationPresent(ForeignKey.class)) {
+                                if (UtilsReflection.isForeignField(foreignColumnField)) {
                                     ForeignKey foreignKeyAnnotation = foreignColumnField.getAnnotation(ForeignKey.class);
 
                                     // Primary column is the primary column specified in foreign key annotation
@@ -146,7 +145,7 @@ public class UtilsQuery {
                                     primaryTableAlias = pTableAlias;
 
                                     // Check if the primary column exists in the primary table
-                                    primaryColumnField = UtilsReflection.getColumnFieldByColumnName(primaryColumnName, primaryTableClass);
+                                    primaryColumnField = UtilsReflection.findColumnFieldByColumnName(primaryColumnName, primaryTableClass);
                                     if (primaryColumnField == null) {
                                         throw new RuntimeException(String.format("There is no primaryColumnName '%s' in the table class '%s'.", primaryColumnName, primaryTableClass.getSimpleName()));
                                     }
@@ -154,10 +153,12 @@ public class UtilsQuery {
                                     throw new RuntimeException(String.format("MappedBy field '%s' in the table class '%s' should be annotated with %s.", annotationForeignColumnName, annotationForeignTableClass.getSimpleName(), ForeignKey.class.getSimpleName()));
                                 }
                             }
-                        } else if (isForeignKey) {
+                        } else if (isForeignField) {
                             // This column is a foreign key
 
                             ForeignKey foreignKeyAnnotation = selectableColumnField.getAnnotation(ForeignKey.class);
+
+                            shouldAddToProjections = true;
 
                             // Foreign table is the table currently being processed
                             foreignTableClass = pTableClass;
@@ -178,7 +179,7 @@ public class UtilsQuery {
                             }
 
                             // Check if the primary column exists in the primary table
-                            primaryColumnField = UtilsReflection.getColumnFieldByColumnName(primaryColumnName, primaryTableClass);
+                            primaryColumnField = UtilsReflection.findColumnFieldByColumnName(primaryColumnName, primaryTableClass);
                             if (primaryColumnField == null) {
                                 throw new RuntimeException(String.format("There is no column field '%s' in the table class '%s'", primaryColumnName, primaryTableClass.getSimpleName()));
                             }
@@ -224,6 +225,12 @@ public class UtilsQuery {
                             UtilsQuery.buildProjectionsAndTableClause(pProjections, pTableClauseBuilder, columnDataType, nextProcessedTableAlias, pTableAliasHashMap, relationship);
                         }
                     }
+                }
+
+                if (shouldAddToProjections) {
+                    String columnName = UtilsReflection.getColumnName(selectableColumnField);
+                    String columnAlias = UtilsNaming.buildColumnAlias(pTableAlias, columnName);
+                    pProjections.add(columnAlias);
                 }
             }
         } else {

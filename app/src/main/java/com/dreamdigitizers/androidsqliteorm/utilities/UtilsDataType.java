@@ -3,7 +3,6 @@ package com.dreamdigitizers.androidsqliteorm.utilities;
 import android.text.TextUtils;
 
 import com.dreamdigitizers.androidsqliteorm.annotations.ForeignKey;
-import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 
 import java.lang.reflect.Field;
 
@@ -36,7 +35,7 @@ public class UtilsDataType {
             return UtilsDataType.DATA_TYPE__BLOB;
         }
 
-        if (pColumnField.isAnnotationPresent(ForeignKey.class) && columnDataType.isAnnotationPresent(Table.class)) {
+        if (UtilsReflection.isForeignField(pColumnField) && UtilsReflection.isTableClass(columnDataType)) {
             ForeignKey foreignKeyAnnotation = pColumnField.getAnnotation(ForeignKey.class);
 
             String primaryColumnName = foreignKeyAnnotation.primaryColumnName();
@@ -44,7 +43,7 @@ public class UtilsDataType {
                 primaryColumnName = UtilsReflection.getColumnName(pColumnField);
             }
 
-            Field primaryColumnField = UtilsReflection.getColumnFieldByColumnName(primaryColumnName, columnDataType);
+            Field primaryColumnField = UtilsReflection.findColumnFieldByColumnName(primaryColumnName, columnDataType);
             if (primaryColumnField == null) {
                 throw new RuntimeException(String.format("There is no primaryColumnName '%s' in the table class '%s'.", primaryColumnName, columnDataType.getSimpleName()));
             }

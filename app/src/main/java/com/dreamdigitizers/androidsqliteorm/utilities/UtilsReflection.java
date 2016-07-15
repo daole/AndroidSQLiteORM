@@ -4,6 +4,7 @@ import android.content.Context;
 import android.text.TextUtils;
 
 import com.dreamdigitizers.androidsqliteorm.annotations.Column;
+import com.dreamdigitizers.androidsqliteorm.annotations.ForeignKey;
 import com.dreamdigitizers.androidsqliteorm.annotations.ManyToOne;
 import com.dreamdigitizers.androidsqliteorm.annotations.OneToMany;
 import com.dreamdigitizers.androidsqliteorm.annotations.OneToOne;
@@ -11,6 +12,7 @@ import com.dreamdigitizers.androidsqliteorm.annotations.PrimaryKey;
 import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
@@ -22,17 +24,6 @@ import java.util.List;
 import dalvik.system.DexFile;
 
 public class UtilsReflection {
-    public static Class<?> extractEssentialFieldType(Field pField) {
-        Class<?> clazz = pField.getType();
-        if (clazz.isArray()) {
-            clazz = clazz.getComponentType();
-        } else if (Collection.class.isAssignableFrom(clazz)) {
-            ParameterizedType parameterizedType = (ParameterizedType) pField.getGenericType();
-            clazz = (Class<?>) parameterizedType.getActualTypeArguments()[0];
-        }
-        return clazz;
-    }
-
     public static List<Class<?>> getTableClasses(Context pContext) throws IOException, ClassNotFoundException {
         List<Class<?>> tableClasses = new ArrayList<>();
         DexFile dexFile = new DexFile(pContext.getApplicationInfo().sourceDir);
@@ -90,7 +81,7 @@ public class UtilsReflection {
         return selectableColumnFields;
     }
 
-    public static Field getColumnFieldByColumnName(String pColumnName, Class<?> pTableClass) {
+    public static Field findColumnFieldByColumnName(String pColumnName, Class<?> pTableClass) {
         List<Field> columnFields = UtilsReflection.getAllColumnFields(pTableClass);
         for (Field columnField : columnFields) {
             String columnName = UtilsReflection.getColumnName(columnField);
@@ -99,6 +90,27 @@ public class UtilsReflection {
             }
         }
         return null;
+    }
+
+    public static Field findPrimaryColumnField(Class<?> pTableClass) {
+        List<Field> columnFields = UtilsReflection.getAllColumnFields(pTableClass);
+        for (Field columnField : columnFields) {
+            if (UtilsReflection.isPrimaryField(columnField)) {
+                return columnField;
+            }
+        }
+        return null;
+    }
+
+    public static Class<?> extractEssentialFieldType(Field pField) {
+        Class<?> clazz = pField.getType();
+        if (clazz.isArray()) {
+            clazz = clazz.getComponentType();
+        } else if (Collection.class.isAssignableFrom(clazz)) {
+            ParameterizedType parameterizedType = (ParameterizedType) pField.getGenericType();
+            clazz = (Class<?>) parameterizedType.getActualTypeArguments()[0];
+        }
+        return clazz;
     }
 
     public static TableInformation getTableInformation(Class<?> pTableClass) {
@@ -153,7 +165,7 @@ public class UtilsReflection {
             columnInformation.setDefaultValue(columnAnnotation.defaultValue());
             columnInformation.setNullable(columnAnnotation.nullable());
             columnInformation.setUnique(columnAnnotation.unique());
-            if (pColumnField.isAnnotationPresent(PrimaryKey.class)) {
+            if (UtilsReflection.isPrimaryField(pColumnField)) {
                 PrimaryKey primaryKeyAnnotation = pColumnField.getAnnotation(PrimaryKey.class);
                 columnInformation.setPrimaryKey(true);
                 columnInformation.setAutoIncrement(primaryKeyAnnotation.autoIncrement());
@@ -201,15 +213,10 @@ public class UtilsReflection {
         return defaultValue;
     }
 
-    public static boolean isPrimaryKey(Field pColumnField) {
-        boolean isPrimaryKey = pColumnField.isAnnotationPresent(Column.class) && pColumnField.isAnnotationPresent(PrimaryKey.class);
-        return isPrimaryKey;
-    }
-
     public static boolean isAutoIncrement(Field pColumnField) {
         boolean isAutoIncrement = false;
         String columnType = UtilsDataType.inferColumnDataType(pColumnField);
-        if (UtilsDataType.DATA_TYPE__INTEGER.equals(columnType) && UtilsReflection.isPrimaryKey(pColumnField)) {
+        if (UtilsDataType.DATA_TYPE__INTEGER.equals(columnType) && UtilsReflection.isPrimaryField(pColumnField)) {
             PrimaryKey primaryKeyAnnotation = pColumnField.getAnnotation(PrimaryKey.class);
             isAutoIncrement = primaryKeyAnnotation.autoIncrement();
         }
@@ -235,6 +242,22 @@ public class UtilsReflection {
         return isColumnField;
     }
 
+    public static boolean isPrimaryField(Field pField) {
+        boolean isPrimaryField = false;
+        if (UtilsReflection.isColumnField(pField) && pField.isAnnotationPresent(PrimaryKey.class)) {
+            isPrimaryField = true;
+        }
+        return isPrimaryField;
+    }
+
+    public static boolean isForeignField(Field pField) {
+        boolean isForeignField = false;
+        if (UtilsReflection.isColumnField(pField) && pField.isAnnotationPresent(ForeignKey.class)) {
+            isForeignField = true;
+        }
+        return isForeignField;
+    }
+
     public static boolean isSelectableColumnField(Field pField) {
         boolean isSelectableColumnField = false;
         int modifiers = pField.getModifiers();
@@ -247,6 +270,14 @@ public class UtilsReflection {
             isSelectableColumnField = true;
         }
         return isSelectableColumnField;
+    }
+
+    public static Object[] unpackArray(Object pArrayObject) {
+        Object[] returnArray = new Object[Array.getLength(pArrayObject)];
+        for(int i = 0; i < returnArray.length; i++) {
+            returnArray[i] = Array.get(pArrayObject, i);
+        }
+        return returnArray;
     }
 
     public static class TableInformation {

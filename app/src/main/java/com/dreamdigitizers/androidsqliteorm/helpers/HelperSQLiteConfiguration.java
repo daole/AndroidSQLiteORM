@@ -5,13 +5,16 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 import com.dreamdigitizers.androidsqliteorm.utilities.UtilsDatabaseSchema;
+import com.dreamdigitizers.androidsqliteorm.utilities.UtilsReflection;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
 public class HelperSQLiteConfiguration extends SQLiteOpenHelper {
     private SQLiteConfigurationInformation mSQLiteConfigurationInformation;
 
-    HelperSQLiteConfiguration(SQLiteConfigurationInformation pSQLiteConfigurationInformation) {
+    public HelperSQLiteConfiguration(SQLiteConfigurationInformation pSQLiteConfigurationInformation) {
         super(pSQLiteConfigurationInformation.getDatabaseContext(),
                 pSQLiteConfigurationInformation.getDatabaseName(),
                 pSQLiteConfigurationInformation.getCursorFactory(),
@@ -41,12 +44,12 @@ public class HelperSQLiteConfiguration extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase pSQLiteDatabase) {
-        UtilsDatabaseSchema.createDatabaseSchema(this.mSQLiteConfigurationInformation.getDatabaseContext(), pSQLiteDatabase);
+        UtilsDatabaseSchema.createDatabaseSchema(this.mSQLiteConfigurationInformation.getTableClasses(), pSQLiteDatabase);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase pSQLiteDatabase, int pOldVersion, int pNewVersion) {
-        UtilsDatabaseSchema.updateDatabaseSchema(this.mSQLiteConfigurationInformation.getDatabaseContext(), pSQLiteDatabase);
+        UtilsDatabaseSchema.updateDatabaseSchema(this.mSQLiteConfigurationInformation.getTableClasses(), pSQLiteDatabase);
     }
 
     public static class SQLiteConfigurationInformation {
@@ -57,6 +60,11 @@ public class HelperSQLiteConfiguration extends SQLiteOpenHelper {
         private long mDatabaseMaximumSize;
         private long mDatabasePageSize;
         private Locale mDatabaseLocale;
+        private List<Class<?>> mTableClasses;
+
+        public SQLiteConfigurationInformation() {
+            this.mTableClasses = new ArrayList<>();
+        }
 
         public Context getDatabaseContext() {
             return this.mDatabaseContext;
@@ -112,6 +120,22 @@ public class HelperSQLiteConfiguration extends SQLiteOpenHelper {
 
         public void setDatabaseLocale(Locale pDatabaseLocale) {
             this.mDatabaseLocale = pDatabaseLocale;
+        }
+
+        public List<Class<?>> getTableClasses() {
+            return this.mTableClasses;
+        }
+
+        public void setTableClasses(List<Class<?>> pTableClasses) {
+            this.mTableClasses = pTableClasses;
+        }
+
+        public void setTableClasses(Class<?>... pTableClasses) {
+            for (Class<?> tableClass : pTableClasses) {
+                if (UtilsReflection.isTableClass(tableClass)) {
+                    this.mTableClasses.add(tableClass);
+                }
+            }
         }
     }
 }
