@@ -6,9 +6,6 @@ import android.database.sqlite.SQLiteQueryBuilder;
 import android.text.TextUtils;
 
 import com.dreamdigitizers.androidsqliteorm.annotations.ForeignKey;
-import com.dreamdigitizers.androidsqliteorm.annotations.ManyToOne;
-import com.dreamdigitizers.androidsqliteorm.annotations.OneToMany;
-import com.dreamdigitizers.androidsqliteorm.annotations.OneToOne;
 import com.dreamdigitizers.androidsqliteorm.helpers.HelperSQLite;
 import com.dreamdigitizers.androidsqliteorm.helpers.HelperSQLiteConfiguration;
 import com.dreamdigitizers.androidsqliteorm.utilities.UtilsDataType;
@@ -144,160 +141,140 @@ public class Repository {
                 // boolean annotationOptional;
                 Class<?> annotationForeignTableClass;
                 String annotationForeignColumnName;
-                FetchType annotationFetchType;
 
                 // Retrieve relationship information
-                if (selectableColumnField.isAnnotationPresent(OneToOne.class)) {
-                    OneToOne oneToOneAnnotation = selectableColumnField.getAnnotation(OneToOne.class);
+                com.dreamdigitizers.androidsqliteorm.annotations.Relationship relationshipAnnotation = selectableColumnField.getAnnotation(com.dreamdigitizers.androidsqliteorm.annotations.Relationship.class);
 
-                    // annotationOptional = oneToOneAnnotation.optional();
-                    annotationForeignTableClass = oneToOneAnnotation.foreignTableClass();
-                    annotationForeignColumnName = oneToOneAnnotation.foreignColumnName();
-                    annotationFetchType = oneToOneAnnotation.fetchType();
-                } else if (selectableColumnField.isAnnotationPresent(OneToMany.class)) {
-                    OneToMany oneToManyAnnotation = selectableColumnField.getAnnotation(OneToMany.class);
+                // annotationOptional = relationshipAnnotation.optional();
+                annotationForeignTableClass = relationshipAnnotation.foreignTableClass();
+                annotationForeignColumnName = relationshipAnnotation.foreignColumnName();
 
-                    // annotationOptional = oneToManyAnnotation.optional();
-                    annotationForeignTableClass = oneToManyAnnotation.foreignTableClass();
-                    annotationForeignColumnName = oneToManyAnnotation.foreignColumnName();
-                    annotationFetchType = oneToManyAnnotation.fetchType();
+                boolean isForeignField = UtilsReflection.isForeignField(selectableColumnField);
+
+                Class<?> nextProcessedTableClass;
+
+                Class<?> primaryTableClass;
+                String primaryTableAlias = null;
+
+                Field primaryColumnField;
+
+                Class<?> foreignTableClass;
+                String foreignTableAlias = null;
+
+                Field foreignColumnField;
+
+                if (isForeignField) {
+                    // This column is a foreign key
+
+                    ForeignKey foreignKeyAnnotation = selectableColumnField.getAnnotation(ForeignKey.class);
+
+                    // Foreign table is the table currently being processed
+                    foreignTableClass = pTableClass;
+                    foreignTableAlias = pTableAlias;
+
+                    // Foreign column this the column currently being processed
+                    foreignColumnField = selectableColumnField;
+
+                    // Primary table class is the class of foreign column
+                    primaryTableClass = columnDataType;
+                    nextProcessedTableClass = primaryTableClass;
+
+                    // Primary column is the primary column specified in foreign key annotation
+                    String primaryColumnName = foreignKeyAnnotation.primaryColumnName();
+                    if (TextUtils.isEmpty(primaryColumnName)) {
+                        primaryColumnName = UtilsReflection.getColumnName(selectableColumnField);
+                    }
+                    primaryColumnField = UtilsReflection.findColumnFieldByColumnName(primaryColumnName, primaryTableClass);
+
+                    // Retrieve the relationship's value (foreign column's value)
+                    Class<?> primaryColumnDataType = UtilsReflection.extractEssentialFieldType(primaryColumnField);
+                    relationshipValue = this.getColumnValue(pCursor, foreignColumnField, primaryColumnDataType, pTableAlias);
                 } else {
-                    ManyToOne manyToOneAnnotation = selectableColumnField.getAnnotation(ManyToOne.class);
+                    // Process foreign table and foreign column if they are specified in the relationship annotation
 
-                    // annotationOptional = manyToOneAnnotation.optional();
-                    annotationForeignTableClass = manyToOneAnnotation.foreignTableClass();
-                    annotationForeignColumnName = manyToOneAnnotation.foreignColumnName();
-                    annotationFetchType = manyToOneAnnotation.fetchType();
+                    // Check if foreign table is specified
+                    if (annotationForeignTableClass == void.class) {
+                        annotationForeignTableClass = columnDataType;
+                    }
+
+                    // Foreign table is the table specified in the relationship annotation
+                    foreignTableClass = annotationForeignTableClass;
+                    nextProcessedTableClass = foreignTableClass;
+
+                    // Check if the foreign column exists in the foreign table
+                    // Foreign column is the column specified in the relationship annotation
+                    foreignColumnField = UtilsReflection.findColumnFieldByColumnName(annotationForeignColumnName, annotationForeignTableClass);
+
+                    // Primary table class is the class of foreign column
+                    primaryTableClass = foreignColumnField.getType();
+                    primaryTableAlias = pTableAlias;
+
+                    ForeignKey foreignKeyAnnotation = foreignColumnField.getAnnotation(ForeignKey.class);
+
+                    // Primary column is the primary column specified in foreign key annotation
+                    String primaryColumnName = foreignKeyAnnotation.primaryColumnName();
+                    if (TextUtils.isEmpty(primaryColumnName)) {
+                        primaryColumnName = UtilsReflection.getColumnName(foreignColumnField);
+                    }
+                    primaryColumnField = UtilsReflection.findColumnFieldByColumnName(primaryColumnName, primaryTableClass);
+
+                    // Retrieve the relationship's value (primary column's value)
+                    Class<?> primaryColumnDataType = UtilsReflection.extractEssentialFieldType(primaryColumnField);
+                    relationshipValue = this.getColumnValue(pCursor, primaryColumnField, primaryColumnDataType, pTableAlias);
                 }
 
-                if (annotationFetchType == FetchType.EAGER) {
-                    boolean isForeignField = UtilsReflection.isForeignField(selectableColumnField);
+                Object columnValue;
 
-                    Class<?> nextProcessedTableClass;
-
-                    Class<?> primaryTableClass;
-                    String primaryTableAlias = null;
-
-                    Field primaryColumnField;
-
-                    Class<?> foreignTableClass;
-                    String foreignTableAlias = null;
-
-                    Field foreignColumnField;
-
-                    if (isForeignField) {
-                        // This column is a foreign key
-
-                        ForeignKey foreignKeyAnnotation = selectableColumnField.getAnnotation(ForeignKey.class);
-
-                        // Foreign table is the table currently being processed
-                        foreignTableClass = pTableClass;
-                        foreignTableAlias = pTableAlias;
-
-                        // Foreign column this the column currently being processed
-                        foreignColumnField = selectableColumnField;
-
-                        // Primary table class is the class of foreign column
-                        primaryTableClass = columnDataType;
-                        nextProcessedTableClass = primaryTableClass;
-
-                        // Primary column is the primary column specified in foreign key annotation
-                        String primaryColumnName = foreignKeyAnnotation.primaryColumnName();
-                        if (TextUtils.isEmpty(primaryColumnName)) {
-                            primaryColumnName = UtilsReflection.getColumnName(selectableColumnField);
-                        }
-                        primaryColumnField = UtilsReflection.findColumnFieldByColumnName(primaryColumnName, primaryTableClass);
-
-                        // Retrieve the relationship's value (foreign column's value)
-                        Class<?> primaryColumnDataType = UtilsReflection.extractEssentialFieldType(primaryColumnField);
-                        relationshipValue = this.getColumnValue(pCursor, foreignColumnField, primaryColumnDataType, pTableAlias);
-                    } else {
-                        // Process foreign table and foreign column if they are specified in the relationship annotation
-
-                        // Check if foreign table is specified
-                        if (annotationForeignTableClass == void.class) {
-                            annotationForeignTableClass = columnDataType;
-                        }
-
-                        // Foreign table is the table specified in the relationship annotation
-                        foreignTableClass = annotationForeignTableClass;
-                        nextProcessedTableClass = foreignTableClass;
-
-                        // Check if the foreign column exists in the foreign table
-                        // Foreign column is the column specified in the relationship annotation
-                        foreignColumnField = UtilsReflection.findColumnFieldByColumnName(annotationForeignColumnName, annotationForeignTableClass);
-
-                        // Primary table class is the class of foreign column
-                        primaryTableClass = foreignColumnField.getType();
-                        primaryTableAlias = pTableAlias;
-
-                        ForeignKey foreignKeyAnnotation = foreignColumnField.getAnnotation(ForeignKey.class);
-
-                        // Primary column is the primary column specified in foreign key annotation
-                        String primaryColumnName = foreignKeyAnnotation.primaryColumnName();
-                        if (TextUtils.isEmpty(primaryColumnName)) {
-                            primaryColumnName = UtilsReflection.getColumnName(foreignColumnField);
-                        }
-                        primaryColumnField = UtilsReflection.findColumnFieldByColumnName(primaryColumnName, primaryTableClass);
-
-                        // Retrieve the relationship's value (primary column's value)
-                        Class<?> primaryColumnDataType = UtilsReflection.extractEssentialFieldType(primaryColumnField);
-                        relationshipValue = this.getColumnValue(pCursor, primaryColumnField, primaryColumnDataType, pTableAlias);
+                // Check if this join is already processed
+                Relationship relationship = new Relationship(primaryTableClass, primaryColumnField, foreignTableClass, foreignColumnField, record, relationshipValue);
+                if (!relationship.equals(pRelationship)) {
+                    if (TextUtils.isEmpty(primaryTableAlias)) {
+                        primaryTableAlias = UtilsNaming.buildTableAlias(primaryTableClass, pTableAliasesHashMap);
                     }
 
-                    Object columnValue;
-
-                    // Check if this join is already processed
-                    Relationship relationship = new Relationship(primaryTableClass, primaryColumnField, foreignTableClass, foreignColumnField, record, relationshipValue);
-                    if (!relationship.equals(pRelationship)) {
-                        if (TextUtils.isEmpty(primaryTableAlias)) {
-                            primaryTableAlias = UtilsNaming.buildTableAlias(primaryTableClass, pTableAliasesHashMap);
-                        }
-
-                        if (TextUtils.isEmpty(foreignTableAlias)) {
-                            foreignTableAlias = UtilsNaming.buildTableAlias(foreignTableClass, pTableAliasesHashMap);
-                        }
-
-                        String nextProcessedTableAlias = null;
-                        if (nextProcessedTableClass.equals(primaryTableClass)) {
-                            nextProcessedTableAlias = primaryTableAlias;
-                        } else if (nextProcessedTableClass.equals(foreignTableClass)) {
-                            nextProcessedTableAlias = foreignTableAlias;
-                        }
-
-                        columnValue = this.fetchDataAtCurrentRow(pCursor, nextProcessedTableClass, nextProcessedTableAlias, pTableAliasesHashMap, pProcessedRecordsHashMap, relationship);
-                    } else {
-                        columnValue = pRelationship.mRelationshipEntity;
+                    if (TextUtils.isEmpty(foreignTableAlias)) {
+                        foreignTableAlias = UtilsNaming.buildTableAlias(foreignTableClass, pTableAliasesHashMap);
                     }
 
-                    if (columnValue != null) {
-                        Object selectableColumnFieldValue = selectableColumnField.get(record);
-                        Class<?> selectableColumnFieldType = selectableColumnField.getType();
-                        if (selectableColumnFieldType.isArray()) {
-                            List<Object> listValues;
-                            if (selectableColumnFieldValue == null) {
-                                listValues = new ArrayList<>();
-                            } else {
-                                Object[] arrayValues = UtilsReflection.unpackArray(selectableColumnFieldValue);
-                                listValues = Arrays.asList(arrayValues);
-                            }
-                            if (!listValues.contains(columnValue)) {
-                                listValues.add(columnValue);
-                            }
-                            Object[] arrayValues = listValues.toArray();
-                            selectableColumnField.set(record, arrayValues);
-                        } else if (Collection.class.isAssignableFrom(selectableColumnFieldType)) {
-                            Collection collectionValues = (Collection) selectableColumnFieldValue;
-                            if (collectionValues == null) {
-                                collectionValues = new ArrayList();
-                                selectableColumnField.set(record, collectionValues);
-                            }
-                            if (!collectionValues.contains(columnValue)) {
-                                collectionValues.add(columnValue);
-                            }
+                    String nextProcessedTableAlias = null;
+                    if (nextProcessedTableClass.equals(primaryTableClass)) {
+                        nextProcessedTableAlias = primaryTableAlias;
+                    } else if (nextProcessedTableClass.equals(foreignTableClass)) {
+                        nextProcessedTableAlias = foreignTableAlias;
+                    }
+
+                    columnValue = this.fetchDataAtCurrentRow(pCursor, nextProcessedTableClass, nextProcessedTableAlias, pTableAliasesHashMap, pProcessedRecordsHashMap, relationship);
+                } else {
+                    columnValue = pRelationship.mRelationshipEntity;
+                }
+
+                if (columnValue != null) {
+                    Object selectableColumnFieldValue = selectableColumnField.get(record);
+                    Class<?> selectableColumnFieldType = selectableColumnField.getType();
+                    if (selectableColumnFieldType.isArray()) {
+                        List<Object> listValues;
+                        if (selectableColumnFieldValue == null) {
+                            listValues = new ArrayList<>();
                         } else {
-                            selectableColumnField.set(record, columnValue);
+                            Object[] arrayValues = UtilsReflection.unpackArray(selectableColumnFieldValue);
+                            listValues = Arrays.asList(arrayValues);
                         }
+                        if (!listValues.contains(columnValue)) {
+                            listValues.add(columnValue);
+                        }
+                        Object[] arrayValues = listValues.toArray();
+                        selectableColumnField.set(record, arrayValues);
+                    } else if (Collection.class.isAssignableFrom(selectableColumnFieldType)) {
+                        Collection collectionValues = (Collection) selectableColumnFieldValue;
+                        if (collectionValues == null) {
+                            collectionValues = new ArrayList();
+                            selectableColumnField.set(record, collectionValues);
+                        }
+                        if (!collectionValues.contains(columnValue)) {
+                            collectionValues.add(columnValue);
+                        }
+                    } else {
+                        selectableColumnField.set(record, columnValue);
                     }
                 }
             }

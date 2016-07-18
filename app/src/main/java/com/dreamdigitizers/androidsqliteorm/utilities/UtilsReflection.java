@@ -5,10 +5,8 @@ import android.text.TextUtils;
 
 import com.dreamdigitizers.androidsqliteorm.annotations.Column;
 import com.dreamdigitizers.androidsqliteorm.annotations.ForeignKey;
-import com.dreamdigitizers.androidsqliteorm.annotations.ManyToOne;
-import com.dreamdigitizers.androidsqliteorm.annotations.OneToMany;
-import com.dreamdigitizers.androidsqliteorm.annotations.OneToOne;
 import com.dreamdigitizers.androidsqliteorm.annotations.PrimaryKey;
+import com.dreamdigitizers.androidsqliteorm.annotations.Relationship;
 import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 
 import java.io.IOException;
@@ -264,9 +262,7 @@ public class UtilsReflection {
         if (!Modifier.isStatic(modifiers)
                 && !Modifier.isTransient(modifiers)
                 && (pField.isAnnotationPresent(Column.class)
-                || pField.isAnnotationPresent(OneToOne.class)
-                || pField.isAnnotationPresent(OneToMany.class)
-                || pField.isAnnotationPresent(ManyToOne.class))) {
+                || pField.isAnnotationPresent(Relationship.class))) {
             isSelectableColumnField = true;
         }
         return isSelectableColumnField;
