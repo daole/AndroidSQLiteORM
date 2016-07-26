@@ -1,44 +1,20 @@
 package com.dreamdigitizers.androidsqliteorm.utilities;
 
-import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.text.TextUtils;
 import android.util.Log;
 
-import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 
 public class UtilsDatabaseSchema {
-    private static final String TAG = "UtilsDatabaseSchema";
-
-    public static void createDatabaseSchema(Context pContext, SQLiteDatabase pSQLiteDatabase) {
-        try {
-            List<Class<?>> tableClasses = UtilsReflection.getTableClasses(pContext);
-            UtilsDatabaseSchema.createDatabaseSchema(tableClasses, pSQLiteDatabase);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        }
-    }
+    private static final String TAG = UtilsDatabaseSchema.class.getSimpleName();
 
     public static void createDatabaseSchema(List<Class<?>> pTableClasses, SQLiteDatabase pSQLiteDatabase) {
         for (Class<?> tableClass : pTableClasses) {
             UtilsDatabaseSchema.createTable(tableClass, pSQLiteDatabase);
-        }
-    }
-
-    public static void updateDatabaseSchema(Context pContext, SQLiteDatabase pSQLiteDatabase) {
-        try {
-            List<Class<?>> tableClasses = UtilsReflection.getTableClasses(pContext);
-            UtilsDatabaseSchema.updateDatabaseSchema(tableClasses, pSQLiteDatabase);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -108,7 +84,6 @@ public class UtilsDatabaseSchema {
     public static String createTableSQL(Class pTableClass) {
         UtilsReflection.TableInformation tableInformation = UtilsReflection.getTableInformation(pTableClass);
         String tableName = tableInformation.getName();
-        String[] tablePrimaryKeys = tableInformation.getPrimaryKeys();
         String[] tableUniqueConstraint = tableInformation.getUniqueConstraint();
 
         StringBuilder stringBuilder = new StringBuilder("CREATE TABLE IF NOT EXISTS ");
@@ -131,7 +106,7 @@ public class UtilsDatabaseSchema {
             stringBuilder.append(" ");
             stringBuilder.append(columnDataType);
 
-            if ((tablePrimaryKeys == null || tablePrimaryKeys.length == 0) && isColumnPrimaryKey) {
+            if (isColumnPrimaryKey) {
                 stringBuilder.append(" PRIMARY KEY");
 
                 if (isColumnAutoIncrement) {
@@ -158,23 +133,6 @@ public class UtilsDatabaseSchema {
             }
 
             i++;
-        }
-
-        if (tablePrimaryKeys != null && tablePrimaryKeys.length > 0) {
-            stringBuilder.append(", PRIMARY KEY(");
-
-            int j = 0;
-            for(String columnName : tablePrimaryKeys) {
-                stringBuilder.append(columnName);
-
-                if (j < (tablePrimaryKeys.length - 1)) {
-                    stringBuilder.append(", ");
-                }
-
-                j++;
-            }
-
-            stringBuilder.append(")");
         }
 
         if (tableUniqueConstraint != null && tableUniqueConstraint.length > 0) {

@@ -14,7 +14,7 @@ public class UtilsDataType {
     public static final String DATA_TYPE__BLOB = "BLOB";
 
     public static String inferColumnDataType(Field pColumnField) {
-        Class<?> columnDataType = UtilsReflection.extractEssentialFieldType(pColumnField);
+        Class<?> columnDataType = UtilsReflection.extractEssentialType(pColumnField);
         if (UtilsDataType.isSQLiteIntegerDataType(columnDataType)) {
             return UtilsDataType.DATA_TYPE__INTEGER;
         }
@@ -35,7 +35,7 @@ public class UtilsDataType {
             return UtilsDataType.DATA_TYPE__BLOB;
         }
 
-        if (UtilsReflection.isForeignField(pColumnField) && UtilsReflection.isTableClass(columnDataType)) {
+        if (UtilsReflection.isForeignColumnField(pColumnField) && UtilsReflection.isTableClass(columnDataType)) {
             ForeignKey foreignKeyAnnotation = pColumnField.getAnnotation(ForeignKey.class);
 
             String primaryColumnName = foreignKeyAnnotation.primaryColumnName();

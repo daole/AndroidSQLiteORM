@@ -49,9 +49,6 @@ public class Repository {
 
         String tableClause = tableClauseBuilder.toString();
 
-        //tableClause = "product_order";
-        //pProjection.clear();
-
         this.mSQLiteQueryBuilder.setTables(tableClause);
         Cursor cursor = this.mHelperSQLite.select(this.mSQLiteQueryBuilder, pProjection.toArray(new String[0]), null, null, null, null, null, null);
 
@@ -74,10 +71,89 @@ public class Repository {
         try {
             String tableName = UtilsReflection.getTableName(pEntity.getClass());
             ContentValues contentValues = this.buildContentValues(pEntity);
-            this.mHelperSQLite.insert(tableName, contentValues);
+            long newID = this.mHelperSQLite.insert(tableName, contentValues);
+            if (newID > 0) {
+                Field primaryColumnField = UtilsReflection.findPrimaryColumnField(pEntity.getClass());
+                if (primaryColumnField != null && UtilsReflection.isAutoIncrement(primaryColumnField)) {
+                    primaryColumnField.setAccessible(true);
+                    primaryColumnField.set(pEntity, newID);
+                }
+            }
         } catch (IllegalAccessException e) {
             e.printStackTrace();
         }
+    }
+
+    public int update(Object pEntity) {
+        int affectedRowNumber = 0;
+
+        try {
+            String tableName = UtilsReflection.getTableName(pEntity.getClass());
+            ContentValues contentValues = this.buildContentValues(pEntity);
+
+            StringBuilder whereClauseBuilder = new StringBuilder();
+            ArrayList<String> whereArgsList = new ArrayList<>();
+            this.buildWhereClauseByPrimaryColumnField(pEntity, whereClauseBuilder, whereArgsList);
+
+            String whereClause = null;
+            if (!TextUtils.isEmpty(whereClauseBuilder)) {
+                whereClause = whereClauseBuilder.toString();
+            }
+
+            String[] whereArgs = null;
+            if (!whereArgsList.isEmpty()) {
+                whereArgs = whereArgsList.toArray(new String[0]);
+            }
+
+            affectedRowNumber = this.mHelperSQLite.update(tableName, contentValues, whereClause, whereArgs);
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+
+        return affectedRowNumber;
+    }
+
+    public int delete(Object pEntity) {
+        int affectedRowNumber = 0;
+
+        try {
+            String tableName = UtilsReflection.getTableName(pEntity.getClass());
+
+            StringBuilder whereClauseBuilder = new StringBuilder();
+            ArrayList<String> whereArgsList = new ArrayList<>();
+            this.buildWhereClauseByPrimaryColumnField(pEntity, whereClauseBuilder, whereArgsList);
+
+            String whereClause = null;
+            if (!TextUtils.isEmpty(whereClauseBuilder)) {
+                whereClause = whereClauseBuilder.toString();
+            }
+
+            String[] whereArgs = null;
+            if (!whereArgsList.isEmpty()) {
+                whereArgs = whereArgsList.toArray(new String[0]);
+            }
+
+            affectedRowNumber = this.mHelperSQLite.delete(tableName, whereClause, whereArgs);
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+
+        return affectedRowNumber;
+    }
+
+    private String buildWhereClauseByPrimaryColumnField(Object pEntity, StringBuilder pWhereClauseBuilder, ArrayList<String> pWhereArgsList) throws IllegalAccessException {
+        String whereClause = null;
+        Field primaryColumnField = UtilsReflection.findPrimaryColumnField(pEntity.getClass());
+        if (primaryColumnField != null) {
+            String primaryColumnName = UtilsReflection.getColumnName(primaryColumnField);
+            pWhereClauseBuilder.append(primaryColumnName);
+            pWhereClauseBuilder.append(" = ?");
+
+            primaryColumnField.setAccessible(true);
+            Object primaryColumnValue = primaryColumnField.get(pEntity);
+            pWhereArgsList.add(primaryColumnValue.toString());
+        }
+        return whereClause;
     }
 
     private <T> List<T> fetchData(Cursor pCursor, Class<T> pTableClass) throws InstantiationException, IllegalAccessException {
@@ -124,11 +200,11 @@ public class Repository {
 
         Object relationshipValue;
 
-        List<Field> selectableColumnFields = UtilsReflection.getAllSelectableColumnFields(pTableClass);
+        List<Field> selectableColumnFields = UtilsReflection.getAllSelectableFields(pTableClass);
 
         for (Field selectableColumnField : selectableColumnFields) {
             selectableColumnField.setAccessible(true);
-            Class<?> columnDataType = UtilsReflection.extractEssentialFieldType(selectableColumnField);
+            Class<?> columnDataType = UtilsReflection.extractEssentialType(selectableColumnField);
 
             if (UtilsDataType.isSQLitePrimitiveDataType(columnDataType)) {
                 // Process normal column
@@ -149,7 +225,7 @@ public class Repository {
                 annotationForeignTableClass = relationshipAnnotation.foreignTableClass();
                 annotationForeignColumnName = relationshipAnnotation.foreignColumnName();
 
-                boolean isForeignField = UtilsReflection.isForeignField(selectableColumnField);
+                boolean isForeignField = UtilsReflection.isForeignColumnField(selectableColumnField);
 
                 Class<?> nextProcessedTableClass;
 
@@ -187,7 +263,7 @@ public class Repository {
                     primaryColumnField = UtilsReflection.findColumnFieldByColumnName(primaryColumnName, primaryTableClass);
 
                     // Retrieve the relationship's value (foreign column's value)
-                    Class<?> primaryColumnDataType = UtilsReflection.extractEssentialFieldType(primaryColumnField);
+                    Class<?> primaryColumnDataType = UtilsReflection.extractEssentialType(primaryColumnField);
                     relationshipValue = this.getColumnValue(pCursor, foreignColumnField, primaryColumnDataType, pTableAlias);
                 } else {
                     // Process foreign table and foreign column if they are specified in the relationship annotation
@@ -219,7 +295,7 @@ public class Repository {
                     primaryColumnField = UtilsReflection.findColumnFieldByColumnName(primaryColumnName, primaryTableClass);
 
                     // Retrieve the relationship's value (primary column's value)
-                    Class<?> primaryColumnDataType = UtilsReflection.extractEssentialFieldType(primaryColumnField);
+                    Class<?> primaryColumnDataType = UtilsReflection.extractEssentialType(primaryColumnField);
                     relationshipValue = this.getColumnValue(pCursor, primaryColumnField, primaryColumnDataType, pTableAlias);
                 }
 
@@ -289,6 +365,13 @@ public class Repository {
         if (UtilsReflection.isTableClass(tableClass)) {
             List<Field> columnFields = UtilsReflection.getAllColumnFields(tableClass);
             for (Field columnField : columnFields) {
+                if (UtilsReflection.isAutoIncrement(columnField)) {
+                    columnField.setAccessible(true);
+                    Object columnFieldValue = columnField.get(pEntity);
+                    if (columnFieldValue != null && ((long) columnFieldValue) <= 0) {
+                        continue;
+                    }
+                }
                 this.setColumnValue(pEntity, columnField, contentValues);
             }
         }
@@ -297,7 +380,7 @@ public class Repository {
 
     private Object getPrimaryColumnValue(Cursor pCursor, Class<?> pTableClass, String pTableAlias) {
         Field primaryColumnField = UtilsReflection.findPrimaryColumnField(pTableClass);
-        Class<?> primaryColumnDataType = UtilsReflection.extractEssentialFieldType(primaryColumnField);
+        Class<?> primaryColumnDataType = UtilsReflection.extractEssentialType(primaryColumnField);
         Object columnValue = this.getColumnValue(pCursor, primaryColumnField, primaryColumnDataType, pTableAlias);
         return columnValue;
     }
@@ -365,7 +448,7 @@ public class Repository {
             pContentValues.putNull(columnName);
         } else {
             Class<?> columnDataType = pColumnField.getType();
-            if (UtilsReflection.isForeignField(pColumnField) && UtilsReflection.isTableClass(columnDataType)) {
+            if (UtilsReflection.isForeignColumnField(pColumnField) && UtilsReflection.isTableClass(columnDataType)) {
                 ForeignKey foreignKeyAnnotation = pColumnField.getAnnotation(ForeignKey.class);
 
                 String primaryColumnName = foreignKeyAnnotation.primaryColumnName();

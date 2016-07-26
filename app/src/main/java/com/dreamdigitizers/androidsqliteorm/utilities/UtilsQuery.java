@@ -30,9 +30,9 @@ public class UtilsQuery {
                 pTableClauseBuilder.append(pTableAlias);
             }
 
-            List<Field> selectableColumnFields = UtilsReflection.getAllSelectableColumnFields(pTableClass);
+            List<Field> selectableColumnFields = UtilsReflection.getAllSelectableFields(pTableClass);
             for (Field selectableColumnField : selectableColumnFields) {
-                Class<?> columnDataType = UtilsReflection.extractEssentialFieldType(selectableColumnField);
+                Class<?> columnDataType = UtilsReflection.extractEssentialType(selectableColumnField);
 
                 boolean shouldAddToProjections = false;
                 if (UtilsDataType.isSQLitePrimitiveDataType(columnDataType)) {
@@ -62,7 +62,7 @@ public class UtilsQuery {
                         throw new RuntimeException(String.format("Field '%s' in the class '%s' must be annotated with %s.", selectableColumnField.getName(), pTableClass.getSimpleName(), Relationship.class.getSimpleName()));
                     }
 
-                    boolean isForeignField = UtilsReflection.isForeignField(selectableColumnField);
+                    boolean isForeignField = UtilsReflection.isForeignColumnField(selectableColumnField);
 
                     Class<?> nextProcessedTableClass;
 
@@ -107,7 +107,7 @@ public class UtilsQuery {
                             foreignColumnName = annotationForeignColumnName;
 
                             // Check if the foreign column is a foreign key
-                            if (UtilsReflection.isForeignField(foreignColumnField)) {
+                            if (UtilsReflection.isForeignColumnField(foreignColumnField)) {
                                 ForeignKey foreignKeyAnnotation = foreignColumnField.getAnnotation(ForeignKey.class);
 
                                 // Primary column is the primary column specified in foreign key annotation

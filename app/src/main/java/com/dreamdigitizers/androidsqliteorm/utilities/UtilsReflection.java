@@ -1,6 +1,5 @@
 package com.dreamdigitizers.androidsqliteorm.utilities;
 
-import android.content.Context;
 import android.text.TextUtils;
 
 import com.dreamdigitizers.androidsqliteorm.annotations.Column;
@@ -9,104 +8,120 @@ import com.dreamdigitizers.androidsqliteorm.annotations.PrimaryKey;
 import com.dreamdigitizers.androidsqliteorm.annotations.Relationship;
 import com.dreamdigitizers.androidsqliteorm.annotations.Table;
 
-import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
 
-import dalvik.system.DexFile;
-
 public class UtilsReflection {
-    public static List<Class<?>> getTableClasses(Context pContext) throws IOException, ClassNotFoundException {
-        List<Class<?>> tableClasses = new ArrayList<>();
-        DexFile dexFile = new DexFile(pContext.getApplicationInfo().sourceDir);
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        Enumeration<String> entries = dexFile.entries();
-        while (entries.hasMoreElements()) {
-            String entry = entries.nextElement();
-            Class<?> clazz = classLoader.loadClass(entry);
-            if (UtilsReflection.isTableClass(clazz)) {
-                tableClasses.add(clazz);
-            }
-        }
-        return tableClasses;
-    }
+    private static HashMap<Class<?>, List<Field>> tableClassColumnFieldsHashMap = new HashMap<>();
+    private static HashMap<Class<?>, List<Field>> tableClassSelectableFieldsHashMap = new HashMap<>();
+    private static HashMap<Class<?>, Field> tableClassPrimaryColumnFieldHashMap = new HashMap<>();
+    private static HashMap<Class<?>, String> tableClassTableNameHashMap = new HashMap<>();
+    private static HashMap<Field, String> columnFieldColumnNameHashMap = new HashMap<>();
+    private static HashMap<Field, Class<?>> columnFieldEssentialTypeHashMap = new HashMap<>();
+    private static HashMap<String, Field> columnNameColumnFieldHashMap = new HashMap<>();
 
     public static List<Field> getAllColumnFields(Class<?> pTableClass) {
-        List<Field> columnFields = new ArrayList<>();
+        List<Field> columnFields = UtilsReflection.tableClassColumnFieldsHashMap.get(pTableClass);
+        if (columnFields == null) {
+            columnFields = new ArrayList<>();
 
-        Class<?> superClass = pTableClass.getSuperclass();
-        if (superClass != null) {
-            List<Field> parentColumnFields = UtilsReflection.getAllColumnFields(superClass);
-            if (!parentColumnFields.isEmpty()) {
-                columnFields.addAll(parentColumnFields);
+            Class<?> superClass = pTableClass.getSuperclass();
+            if (superClass != null) {
+                List<Field> parentColumnFields = UtilsReflection.getAllColumnFields(superClass);
+                if (!parentColumnFields.isEmpty()) {
+                    columnFields.addAll(parentColumnFields);
+                }
             }
-        }
 
-        Field[] declaredFields = pTableClass.getDeclaredFields();
-        for (Field declaredField : declaredFields) {
-            if (UtilsReflection.isColumnField(declaredField)) {
-                columnFields.add(declaredField);
+            Field[] declaredFields = pTableClass.getDeclaredFields();
+            for (Field declaredField : declaredFields) {
+                if (UtilsReflection.isColumnField(declaredField)) {
+                    columnFields.add(declaredField);
+                }
             }
+
+            UtilsReflection.tableClassColumnFieldsHashMap.put(pTableClass, columnFields);
         }
 
         return columnFields;
     }
 
-    public static List<Field> getAllSelectableColumnFields(Class<?> pTableClass) {
-        List<Field> selectableColumnFields = new ArrayList<>();
+    public static List<Field> getAllSelectableFields(Class<?> pTableClass) {
+        List<Field> selectableFields = UtilsReflection.tableClassSelectableFieldsHashMap.get(pTableClass);
+        if (selectableFields == null) {
+            selectableFields = new ArrayList<>();
 
-        Class<?> superClass = pTableClass.getSuperclass();
-        if (superClass != null) {
-            List<Field> parentSelectableColumnFields = UtilsReflection.getAllSelectableColumnFields(superClass);
-            if (!parentSelectableColumnFields.isEmpty()) {
-                selectableColumnFields.addAll(parentSelectableColumnFields);
+            Class<?> superClass = pTableClass.getSuperclass();
+            if (superClass != null) {
+                List<Field> parentSelectableColumnFields = UtilsReflection.getAllSelectableFields(superClass);
+                if (!parentSelectableColumnFields.isEmpty()) {
+                    selectableFields.addAll(parentSelectableColumnFields);
+                }
             }
+
+            Field[] declaredFields = pTableClass.getDeclaredFields();
+            for (Field declaredField : declaredFields) {
+                if (UtilsReflection.isSelectableColumnField(declaredField)) {
+                    selectableFields.add(declaredField);
+                }
+            }
+
+            UtilsReflection.tableClassSelectableFieldsHashMap.put(pTableClass, selectableFields);
         }
 
-        Field[] declaredFields = pTableClass.getDeclaredFields();
-        for (Field declaredField : declaredFields) {
-            if (UtilsReflection.isSelectableColumnField(declaredField)) {
-                selectableColumnFields.add(declaredField);
-            }
-        }
-
-        return selectableColumnFields;
-    }
-
-    public static Field findColumnFieldByColumnName(String pColumnName, Class<?> pTableClass) {
-        List<Field> columnFields = UtilsReflection.getAllColumnFields(pTableClass);
-        for (Field columnField : columnFields) {
-            String columnName = UtilsReflection.getColumnName(columnField);
-            if (TextUtils.equals(pColumnName, columnName)) {
-                return columnField;
-            }
-        }
-        return null;
+        return selectableFields;
     }
 
     public static Field findPrimaryColumnField(Class<?> pTableClass) {
-        List<Field> columnFields = UtilsReflection.getAllColumnFields(pTableClass);
-        for (Field columnField : columnFields) {
-            if (UtilsReflection.isPrimaryField(columnField)) {
-                return columnField;
+        Field primaryColumnField = UtilsReflection.tableClassPrimaryColumnFieldHashMap.get(pTableClass);
+        if (primaryColumnField == null) {
+            List<Field> columnFields = UtilsReflection.getAllColumnFields(pTableClass);
+            for (Field columnField : columnFields) {
+                if (UtilsReflection.isPrimaryColumnField(columnField)) {
+                    primaryColumnField = columnField;
+                    UtilsReflection.tableClassPrimaryColumnFieldHashMap.put(pTableClass, primaryColumnField);
+                    break;
+                }
             }
         }
-        return null;
+        return primaryColumnField;
     }
 
-    public static Class<?> extractEssentialFieldType(Field pField) {
-        Class<?> clazz = pField.getType();
-        if (clazz.isArray()) {
-            clazz = clazz.getComponentType();
-        } else if (Collection.class.isAssignableFrom(clazz)) {
-            ParameterizedType parameterizedType = (ParameterizedType) pField.getGenericType();
-            clazz = (Class<?>) parameterizedType.getActualTypeArguments()[0];
+    public static Field findColumnFieldByColumnName(String pColumnName, Class<?> pTableClass) {
+        String tableName = UtilsReflection.getTableName(pTableClass);
+        String columnAlias = UtilsNaming.buildColumnAlias(tableName, pColumnName, false);
+        Field field = UtilsReflection.columnNameColumnFieldHashMap.get(columnAlias);
+        if (field == null) {
+            List<Field> columnFields = UtilsReflection.getAllColumnFields(pTableClass);
+            for (Field columnField : columnFields) {
+                String columnName = UtilsReflection.getColumnName(columnField);
+                if (TextUtils.equals(pColumnName, columnName)) {
+                    field = columnField;
+                    UtilsReflection.columnNameColumnFieldHashMap.put(columnAlias, field);
+                    break;
+                }
+            }
+        }
+        return field;
+    }
+
+    public static Class<?> extractEssentialType(Field pField) {
+        Class<?> clazz = UtilsReflection.columnFieldEssentialTypeHashMap.get(pField);
+        if (clazz == null) {
+            clazz = pField.getType();
+            if (clazz.isArray()) {
+                clazz = clazz.getComponentType();
+            } else if (Collection.class.isAssignableFrom(clazz)) {
+                ParameterizedType parameterizedType = (ParameterizedType) pField.getGenericType();
+                clazz = (Class<?>) parameterizedType.getActualTypeArguments()[0];
+            }
+            UtilsReflection.columnFieldEssentialTypeHashMap.put(pField, clazz);
         }
         return clazz;
     }
@@ -117,31 +132,24 @@ public class UtilsReflection {
             Table tableAnnotation = pTableClass.getAnnotation(Table.class);
             tableInformation = new TableInformation();
             tableInformation.setName(tableAnnotation.name());
-            tableInformation.setPrimaryKeys(tableAnnotation.primaryKeys());
             tableInformation.setUniqueConstraint(tableAnnotation.uniqueConstraint());
         }
         return tableInformation;
     }
 
     public static String getTableName(Class<?> pTableClass) {
-        String tableName = null;
-        if (pTableClass.isAnnotationPresent(Table.class)) {
-            Table tableAnnotation = pTableClass.getAnnotation(Table.class);
-            tableName = tableAnnotation.name();
-            if (TextUtils.isEmpty(tableName)) {
-                tableName = pTableClass.getSimpleName();
+        String tableName = UtilsReflection.tableClassTableNameHashMap.get(pTableClass);
+        if (TextUtils.isEmpty(tableName)) {
+            if (pTableClass.isAnnotationPresent(Table.class)) {
+                Table tableAnnotation = pTableClass.getAnnotation(Table.class);
+                tableName = tableAnnotation.name();
+                if (TextUtils.isEmpty(tableName)) {
+                    tableName = pTableClass.getSimpleName();
+                }
+                UtilsReflection.tableClassTableNameHashMap.put(pTableClass, tableName);
             }
         }
         return tableName;
-    }
-
-    public static String[] getPrimaryKeys(Class<?> pTableClass) {
-        String[] primaryKeys = null;
-        if (pTableClass.isAnnotationPresent(Table.class)) {
-            Table tableAnnotation = pTableClass.getAnnotation(Table.class);
-            primaryKeys = tableAnnotation.primaryKeys();
-        }
-        return primaryKeys;
     }
 
     public static String[] getUniqueConstraint(Class<?> pTableClass) {
@@ -163,7 +171,7 @@ public class UtilsReflection {
             columnInformation.setDefaultValue(columnAnnotation.defaultValue());
             columnInformation.setNullable(columnAnnotation.nullable());
             columnInformation.setUnique(columnAnnotation.unique());
-            if (UtilsReflection.isPrimaryField(pColumnField)) {
+            if (UtilsReflection.isPrimaryColumnField(pColumnField)) {
                 PrimaryKey primaryKeyAnnotation = pColumnField.getAnnotation(PrimaryKey.class);
                 columnInformation.setPrimaryKey(true);
                 columnInformation.setAutoIncrement(primaryKeyAnnotation.autoIncrement());
@@ -173,12 +181,15 @@ public class UtilsReflection {
     }
 
     public static String getColumnName(Field pColumnField) {
-        String columnName = null;
-        if (pColumnField.isAnnotationPresent(Column.class)) {
-            Column columnAnnotation = pColumnField.getAnnotation(Column.class);
-            columnName = columnAnnotation.name();
-            if (TextUtils.isEmpty(columnName)) {
-                columnName = pColumnField.getName();
+        String columnName = UtilsReflection.columnFieldColumnNameHashMap.get(pColumnField);
+        if (TextUtils.isEmpty(columnName)) {
+            if (pColumnField.isAnnotationPresent(Column.class)) {
+                Column columnAnnotation = pColumnField.getAnnotation(Column.class);
+                columnName = columnAnnotation.name();
+                if (TextUtils.isEmpty(columnName)) {
+                    columnName = pColumnField.getName();
+                }
+                UtilsReflection.columnFieldColumnNameHashMap.put(pColumnField, columnName);
             }
         }
         return columnName;
@@ -214,7 +225,7 @@ public class UtilsReflection {
     public static boolean isAutoIncrement(Field pColumnField) {
         boolean isAutoIncrement = false;
         String columnType = UtilsDataType.inferColumnDataType(pColumnField);
-        if (UtilsDataType.DATA_TYPE__INTEGER.equals(columnType) && UtilsReflection.isPrimaryField(pColumnField)) {
+        if (UtilsDataType.DATA_TYPE__INTEGER.equals(columnType) && UtilsReflection.isPrimaryColumnField(pColumnField)) {
             PrimaryKey primaryKeyAnnotation = pColumnField.getAnnotation(PrimaryKey.class);
             isAutoIncrement = primaryKeyAnnotation.autoIncrement();
         }
@@ -240,20 +251,20 @@ public class UtilsReflection {
         return isColumnField;
     }
 
-    public static boolean isPrimaryField(Field pField) {
-        boolean isPrimaryField = false;
-        if (UtilsReflection.isColumnField(pField) && pField.isAnnotationPresent(PrimaryKey.class)) {
-            isPrimaryField = true;
+    public static boolean isPrimaryColumnField(Field pColumnField) {
+        boolean isPrimaryColumnField = false;
+        if (UtilsReflection.isColumnField(pColumnField) && pColumnField.isAnnotationPresent(PrimaryKey.class)) {
+            isPrimaryColumnField = true;
         }
-        return isPrimaryField;
+        return isPrimaryColumnField;
     }
 
-    public static boolean isForeignField(Field pField) {
-        boolean isForeignField = false;
-        if (UtilsReflection.isColumnField(pField) && pField.isAnnotationPresent(ForeignKey.class)) {
-            isForeignField = true;
+    public static boolean isForeignColumnField(Field pColumnField) {
+        boolean isForeignColumnField = false;
+        if (UtilsReflection.isColumnField(pColumnField) && pColumnField.isAnnotationPresent(ForeignKey.class)) {
+            isForeignColumnField = true;
         }
-        return isForeignField;
+        return isForeignColumnField;
     }
 
     public static boolean isSelectableColumnField(Field pField) {
@@ -278,7 +289,6 @@ public class UtilsReflection {
 
     public static class TableInformation {
         private String mName;
-        private String[] mPrimaryKeys;
         private String[] mUniqueConstraint;
 
         public String getName() {
@@ -287,14 +297,6 @@ public class UtilsReflection {
 
         public void setName(String pName) {
             this.mName = pName;
-        }
-
-        public String[] getPrimaryKeys() {
-            return this.mPrimaryKeys;
-        }
-
-        public void setPrimaryKeys(String[] pPrimaryKeys) {
-            this.mPrimaryKeys = pPrimaryKeys;
         }
 
         public String[] getUniqueConstraint() {

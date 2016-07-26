@@ -23,14 +23,6 @@ public class UtilsNaming {
         return alias;
     }
 
-    public static void decreaseTableAliasNumber(Class pTableClass, HashMap<Class, Integer> pAliasHashMap) {
-        if (pAliasHashMap.containsKey(pTableClass)) {
-            Integer number = pAliasHashMap.get(pTableClass);
-            number--;
-            pAliasHashMap.put(pTableClass, number);
-        }
-    }
-
     public static String buildColumnAlias(String pTableName, String pColumnName) {
         return UtilsNaming.buildColumnAlias(pTableName, pColumnName, true);
     }
